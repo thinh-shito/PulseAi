@@ -15,6 +15,7 @@ celery>=5.4.0
 # Auth & Security
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+bcrypt==4.0.1  # pin: passlib compat on Python 3.12 (bcrypt>=4.1 breaks __about__)
 
 # Config
 pydantic-settings>=2.3.0

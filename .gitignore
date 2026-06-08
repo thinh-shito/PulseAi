@@ -45,3 +45,6 @@ Thumbs.db
 *.pem
 *.key
 secrets/
+
+# Local task planning (never committed)
+.tasks/
