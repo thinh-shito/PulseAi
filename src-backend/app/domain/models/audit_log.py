@@ -25,7 +25,7 @@ class AuditLog(Base):
     workflow_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=True)
     resource_type: Mapped[str] = mapped_column(String(100), nullable=True)
     resource_id: Mapped[str] = mapped_column(String(255), nullable=True)
-    metadata: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    log_metadata: Mapped[dict] = mapped_column("metadata", JSONB, nullable=True)
     ip_address: Mapped[str] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
