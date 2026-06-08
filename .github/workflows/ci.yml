@@ -1,0 +1,92 @@
+name: PulseAI CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pulseai_test
+          POSTGRES_PASSWORD: pulseai_test
+          POSTGRES_DB: pulseai_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          cd src-backend
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Lint with flake8 + bandit
+        run: |
+          cd src-backend
+          pip install flake8 bandit
+          flake8 app/ --max-line-length=100 --exclude=__pycache__
+          bandit -r app/ -ll --exclude app/tests
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://pulseai_test:pulseai_test@localhost:5432/pulseai_test_db
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key-32-chars-minimum
+        run: |
+          cd src-backend
+          alembic upgrade head
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://pulseai_test:pulseai_test@localhost:5432/pulseai_test_db
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key-32-chars-minimum
+          ENVIRONMENT: test
+        run: |
+          cd src-backend
+          pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-fail-under=70
+
+  build:
+    name: Build Docker Image
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: |
+          docker build -t pulseai-backend:${{ github.sha }} ./src-backend
+          echo "✅ Docker build successful"

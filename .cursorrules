@@ -1,0 +1,69 @@
+# PulseAI — AI Coding Rules (Senior DDD Standard)
+
+## Project Context
+PulseAI is a medical AI platform that automates Prior Authorization workflows for hospitals.
+Stack: FastAPI + LangGraph + PostgreSQL + Redis + Azure OpenAI GPT-4o.
+Markets: USA (HIPAA) + Vietnam (Thông tư 46/2018/TT-BYT).
+
+## Architecture — Domain-Driven Design (DDD)
+```
+src-backend/app/
+├── api/          # FastAPI routers, Pydantic request/response schemas ONLY
+├── core/         # Config, Security, Database engine — NO business logic
+├── domain/       # Pure Python business logic, entities, value objects — NO framework imports
+├── infra/        # DB repositories, Redis adapters, external clients
+└── services_ai/  # LangGraph agents, AgentState, node functions
+```
+
+## STRICT Rules — Always Follow
+
+### 1. No Global Variables
+❌ NEVER: `db = create_engine(...)` at module level
+✅ ALWAYS: Use dependency injection via FastAPI `Depends()`
+
+### 2. DDD Layer Isolation
+- `domain/` must NEVER import from `api/`, `infra/`, or FastAPI
+- `api/` must NEVER contain business logic — call service/domain functions
+- `infra/` repositories must implement domain interfaces
+
+### 3. Type Safety
+- ALL functions must have complete type hints
+- Use `TypedDict` for LangGraph `AgentState`
+- Use Pydantic `BaseModel` for all API schemas
+
+### 4. PHI Compliance (MANDATORY)
+- NEVER log patient names, phone numbers, ID numbers
+- ALL text sent to Azure OpenAI MUST pass through `PHIFilter.anonymize()` first
+- Use `patient_id` (UUID) in all logs, never real patient identifiers
+
+### 5. Authentication
+- ALL endpoints except `/health` and `/auth/login` MUST use `require_role()` dependency
+- Role check order: ADMIN > DOCTOR > VIEWER
+
+### 6. Audit Trail
+- ALL state-changing operations MUST write to `audit_logs` table
+- Audit logs are append-only — NO delete, NO update
+
+### 7. Testing
+- Use `mock_tools.py` for AI tests — NEVER call real Azure OpenAI in unit tests
+- Every new module must have corresponding test file in `tests/`
+
+## Import Patterns
+```python
+# ✅ Correct
+from app.core.config import settings
+from app.infra.repositories.user_repository import UserRepository
+from app.domain.models.user import User
+
+# ❌ Wrong
+import app.core.config as c
+from ...models import User
+```
+
+## Naming Conventions
+- Files: `snake_case.py`
+- Classes: `PascalCase`
+- Functions/variables: `snake_case`
+- Constants: `UPPER_SNAKE_CASE`
+- DB tables: `snake_case` (plural)
+- Pydantic schemas: suffix `Request` or `Response` (e.g., `LoginRequest`, `TokenResponse`)

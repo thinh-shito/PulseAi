@@ -1,0 +1,95 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./src-backend
+      dockerfile: Dockerfile
+    container_name: pulseai-backend
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./src-backend:/app
+    networks:
+      - pulseai-internal
+      - pulseai-external
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: ./src-backend
+      dockerfile: Dockerfile
+    container_name: pulseai-worker
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./src-backend:/app
+    networks:
+      - pulseai-internal
+      - pulseai-external
+    command: celery -A app.core.celery_app worker --loglevel=info
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: pulseai-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pulseai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pulseai_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-pulseai_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # NOTE: No public port exposed — internal network only
+    networks:
+      - pulseai-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pulseai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulseai-redis
+    # NOTE: No public port exposed — internal network only
+    networks:
+      - pulseai-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  frontend:
+    build:
+      context: ./src-frontend
+      dockerfile: Dockerfile
+    container_name: pulseai-frontend
+    env_file: .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - pulseai-external
+
+networks:
+  pulseai-internal:
+    driver: bridge
+    internal: true   # No outbound internet from DB/Redis containers
+  pulseai-external:
+    driver: bridge   # Backend + Frontend can reach whitelisted endpoints
+
+volumes:
+  postgres_data:
+    driver: local
