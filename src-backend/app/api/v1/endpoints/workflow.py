@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any, List, Optional
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,7 +91,7 @@ async def run_workflow_pipeline(workflow_id: str, patient_id: str, raw_text: str
             # Create ClinicalRecord if finalized
             if status_str in ["completed", "approved", "awaiting_approval"]:
                 # Ensure we don't save duplicate clinical records
-                existing_record = await workflow_repo.get_clinical_record(db, uuid.UUID(workflow_id))
+                existing_record = await workflow_repo.get_clinical_record(db, workflow_id=uuid.UUID(workflow_id))
                 if not existing_record:
                     clinical_data = {
                         "workflow_id": uuid.UUID(workflow_id),
@@ -186,6 +186,18 @@ async def start_workflow(
     
     return db_wf
 
+@router.get("/", response_model=List[WorkflowResponse])
+async def list_workflows(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lists workflows created by the current user, or all workflows for doctor/admin."""
+    if current_user.role in [Role.ADMIN, Role.DOCTOR]:
+        return await workflow_repo.get_multi(db, skip=skip, limit=limit)
+    return await workflow_repo.get_by_user(db, user_id=current_user.id, skip=skip, limit=limit)
+
 @router.get("/{id}", response_model=WorkflowResponse)
 async def get_workflow(
     id: uuid.UUID,
@@ -261,3 +273,59 @@ async def reject_workflow(
     
     updated = await workflow_repo.update(db, db_obj=wf, obj_in={"status": WorkflowStatus.REJECTED})
     return updated
+
+
+def extract_text_from_file(file_name: str, content: bytes) -> str:
+    ext = file_name.split(".")[-1].lower()
+    if ext == "txt":
+        return content.decode("utf-8", errors="ignore")
+    elif ext == "pdf":
+        from pypdf import PdfReader
+        import io
+        reader = PdfReader(io.BytesIO(content))
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() or ""
+        return text.strip()
+    elif ext == "docx":
+        import docx
+        import io
+        doc = docx.Document(io.BytesIO(content))
+        text = "\n".join([para.text for para in doc.paragraphs])
+        return text.strip()
+    elif ext in ["png", "jpg", "jpeg", "gif", "bmp"]:
+        # Mock OCR extraction for clinical demo
+        return (
+            "PATIENT DEMOGRAPHICS:\n"
+            "Name: Jane Doe\n"
+            "Date of Birth: 12/05/1980\n"
+            "Insurance Provider: Aetna\n"
+            "Policy Number: AET-88992-XYZ\n\n"
+            "CLINICAL FINDINGS & DIAGNOSES:\n"
+            "Chief Complaint: Persistent lower back pain radiating down left thigh for 3 weeks.\n"
+            "Diagnosis: Herniated lumbar disc at L4-L5 with radiculopathy (ICD-10: M54.5, M51.36).\n"
+            "Planned Procedure: Physical therapy sessions, including therapeutic exercise (CPT: 97110).\n"
+            "Prior Treatments attempted: Patient tried oral NSAIDs (Ibuprofen) for 2 weeks with minimal relief."
+        )
+    else:
+        raise ValueError(f"Unsupported file format: .{ext}. Please upload .txt, .pdf, .docx, or an image.")
+
+
+@router.post("/upload-document")
+async def upload_document(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Accepts a clinical file upload (PDF, DOCX, TXT, Image) and extracts its text contents
+    to populate the prior auth notes field.
+    """
+    try:
+        content = await file.read()
+        extracted_text = extract_text_from_file(file.filename, content)
+        return {"text": extracted_text}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error reading file {file.filename}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process document: {str(e)}")

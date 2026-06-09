@@ -13,8 +13,88 @@ NOTE: Heavy imports (langchain_openai, langchain_google_genai) are deferred to
       requiring the full LangChain stack to be installed.
 """
 from typing import Optional
+import json
 
 from app.core.config import settings
+
+
+class MockLLM:
+    """Mock LLM class for dev/demo runs when no API keys are configured."""
+    def __init__(self, temperature: float = 0.0):
+        self.temperature = temperature
+
+    def invoke(self, prompt: str):
+        class MockResponse:
+            def __init__(self, content):
+                self.content = content
+
+        prompt_lower = prompt.lower()
+
+        # Clinical Node extraction
+        if "clinical extraction assistant" in prompt_lower:
+            icd10 = ["M54.5"]
+            summary = "Patient reports back pain, routed to default template."
+            confidence = 0.98
+
+            if "lumbar" in prompt_lower or "back" in prompt_lower:
+                icd10 = ["M54.5", "M51.36"]
+                summary = "Lumbar disc degeneration and low back pain."
+                confidence = 0.96
+            elif "knee" in prompt_lower:
+                icd10 = ["M17.11"]
+                summary = "Unilateral primary osteoarthritis of right knee."
+                confidence = 0.97
+            elif "chest" in prompt_lower or "cardiac" in prompt_lower:
+                icd10 = ["R07.9"]
+                summary = "Chest pain, unspecified, requiring prior authorization."
+                confidence = 0.95
+
+            return MockResponse(
+                json.dumps(
+                    {
+                        "icd10_codes": icd10,
+                        "summary": summary,
+                        "confidence_score": confidence,
+                    }
+                )
+            )
+
+        # Form Filler Node
+        elif "medical billing assistant" in prompt_lower:
+            fields = {}
+            if "bcbs" in prompt_lower:
+                fields = {
+                    "diagnosis_code": "M54.5 (Low back pain)",
+                    "procedure_code": "97110 (Therapeutic exercise)",
+                    "treating_physician": "Dr. Emily Chen",
+                }
+            elif "aetna" in prompt_lower:
+                fields = {
+                    "diagnosis_code": "M54.5",
+                    "clinical_notes": "Patient has severe back pain, recommended for physical therapy.",
+                    "prior_treatments": "NSAIDs for 2 weeks, minimal relief.",
+                }
+            elif "uhc" in prompt_lower:
+                fields = {
+                    "member_id": "UHC-999238",
+                    "diagnosis_code": "M54.5",
+                    "procedure_code": "97110",
+                }
+            elif "bhyt_vn" in prompt_lower or "bảo hiểm y tế" in prompt_lower:
+                fields = {
+                    "ma_the_bhyt": "GD4797910200234",
+                    "ma_icd10": "M54.5",
+                    "don_vi_kham": "Bệnh viện Chợ Rẫy",
+                }
+            else:
+                fields = {
+                    "diagnosis_code": "M54.5",
+                    "procedure_code": "97110",
+                }
+            return MockResponse(json.dumps(fields))
+
+        # Default fallback
+        return MockResponse("{}")
 
 
 def get_llm(
@@ -23,6 +103,13 @@ def get_llm(
     streaming: bool = False,
     provider: Optional[str] = None,
 ):
+    # Fallback to MockLLM in dev/demo environment if no real API keys are configured
+    api_key_placeholder = "your-openai-key-for-dev-only"
+    if (
+        not settings.azure_openai_api_key
+        and (not settings.openai_api_key or settings.openai_api_key == api_key_placeholder)
+    ):
+        return MockLLM(temperature=temperature)
     """
     LLM Factory — returns the appropriate LLM instance based on provider/model.
     Imports are lazy so unit tests can import this module without langchain installed.

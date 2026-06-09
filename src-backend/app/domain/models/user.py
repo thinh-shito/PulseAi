@@ -20,7 +20,11 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[Role] = mapped_column(SAEnum(Role), nullable=False, default=Role.VIEWER)
+    role: Mapped[Role] = mapped_column(
+        SAEnum(Role, values_callable=lambda obj: [e.value for e in obj]),
+        nullable=False,
+        default=Role.VIEWER,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

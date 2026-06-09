@@ -2,6 +2,7 @@ version: "3.9"
 
 services:
   backend:
+    image: pulseai-backend:latest
     build:
       context: ./src-backend
       dockerfile: Dockerfile
@@ -14,12 +15,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./src-backend:/app
     networks:
       - pulseai-internal
       - pulseai-external
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 
   postgres:
@@ -31,11 +30,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-pulseai_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # NOTE: No public port exposed — internal network only
     networks:
       - pulseai-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pulseai}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-pulseai}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -43,7 +41,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: pulseai-redis
-    # NOTE: No public port exposed — internal network only
     networks:
       - pulseai-internal
     healthcheck:
@@ -54,9 +51,10 @@ services:
     command: redis-server --appendonly yes
 
   frontend:
+    image: pulseai-frontend:latest
     build:
       context: ./src-frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     container_name: pulseai-frontend
     env_file: .env
     ports:
@@ -69,9 +67,9 @@ services:
 networks:
   pulseai-internal:
     driver: bridge
-    internal: true   # No outbound internet from DB/Redis containers
+    internal: true
   pulseai-external:
-    driver: bridge   # Backend + Frontend can reach whitelisted endpoints
+    driver: bridge
 
 volumes:
   postgres_data:

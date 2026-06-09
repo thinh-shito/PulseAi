@@ -13,7 +13,10 @@ from app.domain.models.user import User, TokenBlacklist  # noqa: F401
 from app.domain.models.workflow import Workflow, ClinicalRecord  # noqa: F401
 from app.domain.models.audit_log import AuditLog  # noqa: F401
 
+from app.core.config import settings
+
 config = context.config
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

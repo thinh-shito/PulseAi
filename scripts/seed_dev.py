@@ -39,21 +39,34 @@ SEED_USERS = [
 ]
 
 
+from sqlalchemy import select
+
 async def seed():
     engine = create_async_engine(settings.database_url, echo=True)
     SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with SessionLocal() as session:
         for user_data in SEED_USERS:
-            user = User(
-                id=uuid.uuid4(),
-                email=user_data["email"],
-                hashed_password=hash_password(user_data["password"]),
-                full_name=user_data["full_name"],
-                role=user_data["role"],
-            )
-            session.add(user)
-            print(f"  ✅ Seeded user: {user_data['email']} [{user_data['role'].value}]")
+            # Check if user already exists by email
+            stmt = select(User).where(User.email == user_data["email"])
+            result = await session.execute(stmt)
+            existing_user = result.scalar_one_or_none()
+
+            if existing_user:
+                existing_user.hashed_password = hash_password(user_data["password"])
+                existing_user.full_name = user_data["full_name"]
+                existing_user.role = user_data["role"]
+                print(f"  🔄 Updated existing user: {user_data['email']} [{user_data['role'].value}]")
+            else:
+                user = User(
+                    id=uuid.uuid4(),
+                    email=user_data["email"],
+                    hashed_password=hash_password(user_data["password"]),
+                    full_name=user_data["full_name"],
+                    role=user_data["role"],
+                )
+                session.add(user)
+                print(f"  ✅ Seeded user: {user_data['email']} [{user_data['role'].value}]")
 
         await session.commit()
     await engine.dispose()

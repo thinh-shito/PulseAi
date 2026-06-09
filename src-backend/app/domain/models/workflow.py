@@ -30,7 +30,9 @@ class Workflow(Base):
     patient_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     status: Mapped[WorkflowStatus] = mapped_column(
-        SAEnum(WorkflowStatus), default=WorkflowStatus.PENDING, nullable=False
+        SAEnum(WorkflowStatus, values_callable=lambda obj: [e.value for e in obj]),
+        default=WorkflowStatus.PENDING,
+        nullable=False,
     )
     quality_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     payer_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

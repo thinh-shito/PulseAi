@@ -27,12 +27,18 @@ def get_engine() -> AsyncEngine:
     """Return (and lazily create) the async engine singleton."""
     global _engine
     if _engine is None:
+        kwargs = {
+            "echo": settings.environment == "development",
+        }
+        if "sqlite" not in settings.database_url:
+            kwargs.update({
+                "pool_pre_ping": True,
+                "pool_size": 10,
+                "max_overflow": 20,
+            })
         _engine = create_async_engine(
             settings.database_url,
-            echo=settings.environment == "development",
-            pool_pre_ping=True,
-            pool_size=10,
-            max_overflow=20,
+            **kwargs
         )
     return _engine
 
