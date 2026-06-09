@@ -17,6 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inject Lowercase Repository Name
+        run: |
+          echo "REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       # ── Build backend image ──────────────────────────────
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -34,8 +38,8 @@ jobs:
           context: ./src-backend
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/backend:latest
+            ghcr.io/${{ env.REPO_LC }}/backend:${{ github.sha }}
+            ghcr.io/${{ env.REPO_LC }}/backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -46,8 +50,8 @@ jobs:
           file: ./src-frontend/Dockerfile.prod
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/frontend:latest
+            ghcr.io/${{ env.REPO_LC }}/frontend:${{ github.sha }}
+            ghcr.io/${{ env.REPO_LC }}/frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -63,7 +67,7 @@ jobs:
       - name: Deploy backend to Cloud Run
         run: |
           gcloud run deploy pulseai-backend \
-            --image ghcr.io/${{ github.repository }}/backend:${{ github.sha }} \
+            --image ghcr.io/${{ env.REPO_LC }}/backend:${{ github.sha }} \
             --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
             --platform managed \
             --allow-unauthenticated \
@@ -78,7 +82,7 @@ jobs:
       - name: Run DB migrations in Cloud Run job
         run: |
           gcloud run jobs create pulseai-migrate-${{ github.run_number }} \
-            --image ghcr.io/${{ github.repository }}/backend:${{ github.sha }} \
+            --image ghcr.io/${{ env.REPO_LC }}/backend:${{ github.sha }} \
             --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
             --set-secrets "DATABASE_URL=pulseai-db-url:latest" \
             --command "alembic" \
