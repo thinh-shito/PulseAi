@@ -186,30 +186,39 @@ class PresenceService:
         if not user_uuids:
             return {}
 
-        # Get all offsets
+        # Get all offsets for users that have them
         offsets = {}
         for uuid in user_uuids:
             off = await self._get_offset(uuid)
-            offsets[uuid] = off
+            if off is not None:
+                offsets[uuid] = off
 
-        # Pipeline all GETBIT and last_seen checks
+        # If no users have offsets, they are all offline
+        if not offsets:
+            return {uuid: False for uuid in user_uuids}
+
+        # Pipeline GETBIT and last_seen checks only for existing offsets
         pipe = self.r.pipeline()
         for uuid, offset in offsets.items():
-            if offset is not None:
-                pipe.getbit(PRESENCE_BITMAP_KEY, offset)
-                pipe.get(f"{LAST_SEEN_PREFIX}{uuid}")
-            else:
-                pipe.execute_command("SET", "__null__", "0")  # placeholder
-                pipe.execute_command("SET", "__null__", "0")
+            pipe.getbit(PRESENCE_BITMAP_KEY, offset)
+            pipe.get(f"{LAST_SEEN_PREFIX}{uuid}")
         results = await pipe.execute()
 
         presence = {}
         idx = 0
         for uuid in user_uuids:
-            bit = results[idx]
-            last_seen = results[idx + 1]
-            idx += 2
-            presence[uuid] = bool(bit) and (last_seen is not None)
+            if uuid in offsets:
+                bit = results[idx]
+                last_seen = results[idx + 1]
+                idx += 2
+                is_user_online = bool(bit) and (last_seen is not None)
+                presence[uuid] = is_user_online
+
+                # Stale bit cleanup: if bit is 1 but last_seen has expired (is None), reset bit to 0
+                if bit and last_seen is None:
+                    await self.r.setbit(PRESENCE_BITMAP_KEY, offsets[uuid], 0)
+            else:
+                presence[uuid] = False
 
         return presence
 
