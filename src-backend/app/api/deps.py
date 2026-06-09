@@ -10,21 +10,36 @@ from app.core.database import get_db
 from app.core.security import decode_token, Role
 from app.domain.models.user import User
 
-bearer_scheme = HTTPBearer()
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Query
+from typing import Optional
+
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_scheme)] = None,
+    token: Optional[str] = Query(default=None, alias="token"),
 ) -> User:
-    """Extract and validate JWT, return the current authenticated User."""
+    """Extract and validate JWT from header or query param, return the current authenticated User."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    token_str = None
+    if credentials:
+        token_str = credentials.credentials
+    elif token:
+        token_str = token
+
+    if not token_str:
+        raise credentials_exception
+
     try:
-        payload = decode_token(credentials.credentials)
+        payload = decode_token(token_str)
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception

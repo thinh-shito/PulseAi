@@ -1,4 +1,5 @@
 import "./globals.css";
+import PresenceTracker from "@/components/PresenceTracker";
 
 export const metadata = {
   title: "PulseAI Portal",
@@ -23,6 +24,7 @@ export default function RootLayout({
         `}</style>
       </head>
       <body className="antialiased bg-[#0b0f19] text-[#f3f4f6]">
+        <PresenceTracker />
         {children}
       </body>
     </html>

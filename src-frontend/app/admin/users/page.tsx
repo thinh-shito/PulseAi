@@ -26,6 +26,32 @@ export default function AdminUsersPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState("doctor");
+  const [presenceMap, setPresenceMap] = useState<Record<string, boolean>>({});
+
+  const fetchPresence = async (userIds: string[]) => {
+    if (userIds.length === 0) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${API_URL}/api/v1/presence/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ user_ids: userIds }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setPresenceMap(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch presence status:", err);
+    }
+  };
 
   const fetchUsers = async () => {
     setError("");
@@ -48,6 +74,9 @@ export default function AdminUsersPage() {
       if (!res.ok) throw new Error("Failed to load users");
       const data = await res.json();
       setUsers(data);
+      
+      // Fetch presence status for all users immediately
+      fetchPresence(data.map((u: User) => u.id));
     } catch (err: any) {
       setError(err.message || "Failed to load users");
     } finally {
@@ -58,6 +87,15 @@ export default function AdminUsersPage() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Poll presence status of current user list every 15s
+  useEffect(() => {
+    if (users.length === 0) return;
+    const interval = setInterval(() => {
+      fetchPresence(users.map((u) => u.id));
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [users]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,9 +207,22 @@ export default function AdminUsersPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`h-2.5 w-2.5 rounded-full inline-block ${
-                            u.is_active ? "bg-emerald-500" : "bg-gray-500"
-                          }`}></span>
+                          <div className="flex items-center space-x-2">
+                            {presenceMap[u.id] ? (
+                              <>
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                <span className="text-xs font-semibold text-emerald-400">Online</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="h-2 w-2 rounded-full bg-gray-700"></span>
+                                <span className="text-xs text-gray-500">Offline</span>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
