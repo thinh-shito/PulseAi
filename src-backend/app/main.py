@@ -10,13 +10,30 @@ from app.api.v1.router import api_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan — startup and shutdown logic."""
-    # Startup
+    import os
+    import logging
+
+    # ── Configure LangSmith tracing (production monitoring) ──────────────
+    if settings.langchain_tracing_v2 and settings.langchain_api_key:
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        os.environ["LANGCHAIN_API_KEY"] = settings.langchain_api_key
+        os.environ["LANGCHAIN_PROJECT"] = settings.langchain_project
+        print(f"🔍 LangSmith tracing ENABLED — project: {settings.langchain_project}")
+    else:
+        os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
+    # ── Production: block PHI from file logs (HIPAA rule) ────────────────
+    if settings.is_production:
+        for handler in logging.root.handlers[:]:
+            if isinstance(handler, logging.FileHandler):
+                logging.root.removeHandler(handler)
+                print("🔒 PHI file logging removed (production mode)")
+
     print(f"🚀 PulseAI Backend starting in '{settings.environment}' mode")
-    if settings.langchain_tracing_v2:
-        print(f"🔍 LangSmith tracing enabled — project: {settings.langchain_project}")
     yield
     # Shutdown
     print("🛑 PulseAI Backend shutting down")
+
 
 
 def create_app() -> FastAPI:
