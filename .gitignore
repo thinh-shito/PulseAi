@@ -48,3 +48,7 @@ secrets/
 
 # Local task planning (never committed)
 .tasks/
+
+# Deployment artifacts (large binary files)
+*.zip
+workflow_new_screenshot.png
