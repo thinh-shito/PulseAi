@@ -10,5 +10,3 @@ api_router.include_router(admin.router)
 api_router.include_router(presence.router)
 api_router.include_router(templates.router)
 api_router.include_router(chat.router)
-
-

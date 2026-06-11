@@ -20,6 +20,7 @@ from app.core.config import settings
 
 class MockLLM:
     """Mock LLM class for dev/demo runs when no API keys are configured."""
+
     def __init__(self, temperature: float = 0.0):
         self.temperature = temperature
 

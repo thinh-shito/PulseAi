@@ -2,12 +2,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.core.security import verify_password, create_access_token, create_refresh_token, Role
+from app.core.security import verify_password, create_access_token, create_refresh_token
 from app.domain.models.user import User
 from app.api.deps import get_current_user
 
@@ -36,7 +36,8 @@ async def login(
 ) -> TokenResponse:
     """Authenticate user and return JWT tokens."""
     result = await db.execute(
-        select(User).where(User.email == form_data.username, User.is_active == True)
+        select(User).where(User.email ==
+                           form_data.username, User.is_active)
     )
     user = result.scalar_one_or_none()
 
@@ -47,7 +48,8 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token_data = {"sub": str(user.id), "role": user.role.value, "email": user.email}
+    token_data = {"sub": str(
+        user.id), "role": user.role.value, "email": user.email}
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
 

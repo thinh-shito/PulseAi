@@ -19,7 +19,8 @@ class PATemplate(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     fields: Mapped[dict] = mapped_column(JSONB, nullable=False)
     file_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

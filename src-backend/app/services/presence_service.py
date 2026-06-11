@@ -14,7 +14,6 @@ Why Bitmap?
   - SETBIT/GETBIT are O(1)
 """
 
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -30,7 +29,8 @@ UID_COUNTER_KEY = "presence:uid_counter"          # Auto-increment
 UID_MAP_PREFIX = "presence:uid_map:"              # uuid → int offset
 LAST_SEEN_PREFIX = "presence:last_seen:"          # uuid → ISO datetime
 META_PREFIX = "presence:meta:"                    # offset → {uuid, name}
-PRESENCE_TTL = 90                                 # seconds — offline if no heartbeat
+# seconds — offline if no heartbeat
+PRESENCE_TTL = 90
 
 # ─── Redis Client (lazy singleton) ───────────────────────────────────────────
 _redis_client: Optional[aioredis.Redis] = None

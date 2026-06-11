@@ -1,6 +1,6 @@
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,16 +10,13 @@ from app.core.database import get_db
 from app.core.security import decode_token, Role
 from app.domain.models.user import User
 
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Query
-from typing import Optional
-
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
     db: Annotated[AsyncSession, Depends(get_db)],
-    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_scheme)] = None,
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(
+        bearer_scheme)] = None,
     token: Optional[str] = Query(default=None, alias="token"),
 ) -> User:
     """Extract and validate JWT from header or query param, return the current authenticated User."""
@@ -28,7 +25,7 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     token_str = None
     if credentials:
         token_str = credentials.credentials
@@ -46,7 +43,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.id == user_id, User.is_active == True))
+    result = await db.execute(select(User).where(User.id == user_id, User.is_active))
     user = result.scalar_one_or_none()
     if user is None:
         raise credentials_exception

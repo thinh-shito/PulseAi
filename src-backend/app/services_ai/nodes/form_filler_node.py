@@ -27,15 +27,16 @@ MOCK_INSURANCE_DB = {
     },
 }
 
+
 def fill_form_generic(state: AgentState, carrier: str) -> dict:
     db_entry = MOCK_INSURANCE_DB.get(carrier, {})
     required = db_entry.get("required_fields", [])
     template = db_entry.get("form_template", "generic_form.json")
-    
+
     raw_text = state.get("raw_text", "")
     anonymized = anonymize_phi(raw_text)
     summary = state.get("summary", "")
-    
+
     prompt = f"""You are a medical billing assistant.
 We are filling a prior authorization form for {carrier}.
 Required fields to fill: {required}
@@ -55,17 +56,17 @@ Return only valid JSON. Do not write anything else.
         llm = get_llm(temperature=0.0)
         response = llm.invoke(prompt)
         content = response.content.strip()
-        
+
         if content.startswith("```"):
             content = re.sub(r"^```(?:json)?\n", "", content)
             content = re.sub(r"\n```$", "", content)
             content = content.strip()
-            
+
         form_data = json.loads(content)
     except Exception:
         # Fallback values
         form_data = {field: "N/A" for field in required}
-        
+
     return {
         "prior_auth_form": {
             "template": template,
@@ -75,14 +76,18 @@ Return only valid JSON. Do not write anything else.
         "processing_status": "quality_check"
     }
 
+
 def bcbs_form_node(state: AgentState) -> dict:
     return fill_form_generic(state, "BCBS")
+
 
 def aetna_form_node(state: AgentState) -> dict:
     return fill_form_generic(state, "Aetna")
 
+
 def uhc_form_node(state: AgentState) -> dict:
     return fill_form_generic(state, "UHC")
+
 
 def bhyt_form_node(state: AgentState) -> dict:
     return fill_form_generic(state, "BHYT_VN")

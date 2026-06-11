@@ -22,10 +22,12 @@ class AgentState(TypedDict):
     confidence_score: float          # 0.0 to 1.0
 
     # Routing
-    payer_type: Optional[str]        # "BCBS" | "Aetna" | "UHC" | "BHYT_VN" | None
+    # "BCBS" | "Aetna" | "UHC" | "BHYT_VN" | None
+    payer_type: Optional[str]
 
     # Quality
-    quality_score: Optional[float]   # 0 to 100 — below 95 triggers human review
+    # 0 to 100 — below 95 triggers human review
+    quality_score: Optional[float]
 
     # Form output
     prior_auth_form: Optional[dict]  # Filled PA form fields

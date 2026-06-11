@@ -10,6 +10,7 @@ EXCLUDE_WORDS = {
     "Pain", "Therapy", "Treatment", "Prior Auth"
 }
 
+
 def anonymize_phi(text: str) -> str:
     """
     Anonymize Protected Health Information (PHI) in text using regex.
@@ -19,7 +20,8 @@ def anonymize_phi(text: str) -> str:
         return text
 
     # 1. Emails
-    text = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[EMAIL]", text)
+    text = re.sub(
+        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "[EMAIL]", text)
 
     # 2. SSN / ID numbers (e.g. 123-45-6789 or 9-12 digit ID numbers)
     # Check these first so 10-12 digit numbers are treated as ID_NUMBER, not PHONE
@@ -29,7 +31,8 @@ def anonymize_phi(text: str) -> str:
     # 3. Phone numbers
     # We match standard phone numbers and parenthesized area codes
     text = re.sub(r"\(\d{3}\)[-.\s]?\d{3}[-.\s]?\d{4}", "[PHONE]", text)
-    text = re.sub(r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\d{3}[-.\s]?)?\d{3}[-.\s]?\d{4}\b", "[PHONE]", text)
+    text = re.sub(
+        r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\d{3}[-.\s]?)?\d{3}[-.\s]?\d{4}\b", "[PHONE]", text)
 
     # 4. Dates of birth / dates (e.g. 12/12/1990, 1990-12-12)
     text = re.sub(r"\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b", "[DATE]", text)
@@ -41,7 +44,7 @@ def anonymize_phi(text: str) -> str:
         words = match.group(0).split()
         result_words = []
         person_active = False
-        
+
         for w in words:
             # Strip trailing punctuation for exclusion check
             clean_w = re.sub(r'[^\w]', '', w)
@@ -52,13 +55,12 @@ def anonymize_phi(text: str) -> str:
                 result_words.append(w)
             else:
                 person_active = True
-                
+
         if person_active:
             result_words.append("[PERSON]")
-            
+
         return " ".join(result_words)
 
     text = re.sub(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", name_replacer, text)
 
     return text
-

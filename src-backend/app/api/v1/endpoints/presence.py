@@ -158,7 +158,8 @@ async def get_presence_stats(
 async def stream_presence(
     current_user: User = Depends(get_current_user),
     presence: PresenceService = Depends(get_presence_service),
-    interval: int = Query(default=10, ge=5, le=60, description="Poll interval seconds"),
+    interval: int = Query(default=10, ge=5, le=60,
+                          description="Poll interval seconds"),
 ):
     """
     Server-Sent Events stream — pushes real-time online count every N seconds.

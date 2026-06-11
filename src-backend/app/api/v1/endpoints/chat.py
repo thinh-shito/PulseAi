@@ -58,9 +58,11 @@ async def chat_assistant(
     if not message or message.strip() == "":
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     if len(message) > 10000:
-        raise HTTPException(status_code=400, detail="Message exceeds maximum character length (10000)")
+        raise HTTPException(
+            status_code=400, detail="Message exceeds maximum character length (10000)")
     if len(message.split()) > 1000:
-        raise HTTPException(status_code=400, detail="Message exceeds maximum word limit (1000)")
+        raise HTTPException(
+            status_code=400, detail="Message exceeds maximum word limit (1000)")
 
     # 2. Run anonymize_phi on the message
     anonymized_msg = anonymize_phi(message)

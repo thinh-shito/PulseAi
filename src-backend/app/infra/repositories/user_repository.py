@@ -4,10 +4,12 @@ from sqlalchemy.future import select
 from app.domain.models.user import User, TokenBlacklist
 from app.infra.repositories.base_repository import BaseRepository
 
+
 class UserRepository(BaseRepository[User]):
     """
     User Repository extending BaseRepository to support email queries and token blacklisting.
     """
+
     def __init__(self):
         super().__init__(User)
 
@@ -33,5 +35,6 @@ class UserRepository(BaseRepository[User]):
         await db.commit()
         await db.refresh(blacklist_entry)
         return blacklist_entry
+
 
 user_repo = UserRepository()

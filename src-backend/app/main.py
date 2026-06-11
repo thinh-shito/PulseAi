@@ -18,7 +18,8 @@ async def lifespan(app: FastAPI):
         os.environ["LANGCHAIN_TRACING_V2"] = "true"
         os.environ["LANGCHAIN_API_KEY"] = settings.langchain_api_key
         os.environ["LANGCHAIN_PROJECT"] = settings.langchain_project
-        print(f"🔍 LangSmith tracing ENABLED — project: {settings.langchain_project}")
+        print(
+            f"🔍 LangSmith tracing ENABLED — project: {settings.langchain_project}")
     else:
         os.environ["LANGCHAIN_TRACING_V2"] = "false"
 
@@ -33,7 +34,6 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     print("🛑 PulseAI Backend shutting down")
-
 
 
 def create_app() -> FastAPI:

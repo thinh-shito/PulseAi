@@ -6,6 +6,7 @@ class TemplateRepository(BaseRepository[PATemplate]):
     """
     Template Repository extending BaseRepository for PATemplate entity.
     """
+
     def __init__(self):
         super().__init__(PATemplate)
 

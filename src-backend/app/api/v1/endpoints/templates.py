@@ -2,7 +2,7 @@ import io
 import uuid
 import base64
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +35,7 @@ async def list_templates(
     if all and current_user.role == Role.ADMIN:
         result = await db.execute(select(PATemplate))
     else:
-        result = await db.execute(select(PATemplate).where(PATemplate.is_active == True))
+        result = await db.execute(select(PATemplate).where(PATemplate.is_active))
     return result.scalars().all()
 
 
@@ -58,10 +58,12 @@ async def download_blank_template(
     try:
         file_bytes = base64.b64decode(template.file_content)
     except Exception:
-        raise HTTPException(status_code=500, detail="Failed to decode template file content")
+        raise HTTPException(
+            status_code=500, detail="Failed to decode template file content")
 
     return StreamingResponse(
         io.BytesIO(file_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=blank_{template.name}.pdf"}
+        headers={
+            "Content-Disposition": f"attachment; filename=blank_{template.name}.pdf"}
     )

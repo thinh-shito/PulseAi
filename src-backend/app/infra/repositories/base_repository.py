@@ -5,10 +5,12 @@ from app.core.database import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
 
+
 class BaseRepository(Generic[ModelType]):
     """
     Base Repository class containing common asynchronous CRUD query patterns.
     """
+
     def __init__(self, model: Type[ModelType]):
         self.model = model
 

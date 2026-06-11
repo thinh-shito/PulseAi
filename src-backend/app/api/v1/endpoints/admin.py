@@ -2,7 +2,7 @@ import uuid
 import datetime
 import json
 import base64
-from typing import List, Optional, Any
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
@@ -20,11 +20,13 @@ router = APIRouter(prefix="/admin", tags=["Admin Operations"])
 
 # ─── Pydantic Schemas ────────────────────────────────────────────────────────
 
+
 class UserCreateRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     full_name: str
     role: Role
+
 
 class UserResponseSchema(BaseModel):
     id: uuid.UUID
@@ -34,6 +36,7 @@ class UserResponseSchema(BaseModel):
     is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class AuditLogResponseSchema(BaseModel):
     id: uuid.UUID
@@ -50,6 +53,7 @@ class AuditLogResponseSchema(BaseModel):
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
+
 @router.get("/users", response_model=List[UserResponseSchema])
 async def list_users(
     skip: int = 0,
@@ -59,6 +63,7 @@ async def list_users(
 ):
     """Retrieve all system users (ADMIN only)."""
     return await user_repo.get_multi(db, skip=skip, limit=limit)
+
 
 @router.post("/users", response_model=UserResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_user(
@@ -70,7 +75,7 @@ async def create_user(
     existing = await user_repo.get_by_email(db, request.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
-        
+
     user_data = {
         "email": request.email,
         "hashed_password": hash_password(request.password),
@@ -79,6 +84,7 @@ async def create_user(
         "is_active": True
     }
     return await user_repo.create(db, obj_in=user_data)
+
 
 @router.get("/audit-logs", response_model=List[AuditLogResponseSchema])
 async def list_audit_logs(
@@ -123,7 +129,8 @@ async def create_template(
         raise HTTPException(status_code=400, detail="Empty binary file")
 
     if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Templates must be PDF format")
+        raise HTTPException(
+            status_code=400, detail="Templates must be PDF format")
 
     encoded_file = base64.b64encode(file_bytes).decode("utf-8")
 
