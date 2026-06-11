@@ -87,3 +87,75 @@ async def test_approve_workflow_restricted(mock_viewer_user):
             
     app.dependency_overrides.clear()
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_update_workflow_fields(mock_current_user):
+    app.dependency_overrides[get_current_user] = lambda: mock_current_user
+    
+    wf_id = uuid.uuid4()
+    mock_workflow = Workflow(
+        id=wf_id,
+        patient_id="patient-123",
+        created_by=mock_current_user.id,
+        status=WorkflowStatus.AWAITING_APPROVAL,
+        quality_score=90.0,
+        result_data={"fields": {"diagnosis": "Back pain", "cpt_code": "97110"}}
+    )
+    
+    from app.domain.models.workflow import ClinicalRecord
+    mock_clinical = ClinicalRecord(
+        workflow_id=wf_id,
+        patient_id="patient-123",
+        confidence_score=0.95
+    )
+    
+    with patch("app.api.v1.endpoints.workflow.workflow_repo.get", return_value=mock_workflow), \
+         patch("app.api.v1.endpoints.workflow.workflow_repo.get_clinical_record", return_value=mock_clinical), \
+         patch("app.api.v1.endpoints.workflow.AsyncSession.commit", new_callable=AsyncMock), \
+         patch("app.api.v1.endpoints.workflow.AsyncSession.refresh", new_callable=AsyncMock):
+         
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.patch(
+                f"/api/v1/workflow/{wf_id}/fields",
+                headers={"Authorization": "Bearer some-mock-token"},
+                json={"fields": {"diagnosis": "N/A", "cpt_code": "97110"}}
+            )
+            
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    data = response.json()
+    assert data["result_data"]["fields"]["diagnosis"] == "N/A"
+    # Recalculated quality score:
+    # confidence = 0.95 => 95.0. 1 empty/N/A field ("N/A") => deduction 15.
+    # Score = 95.0 - 15 = 80.0
+    assert data["quality_score"] == 80.0
+
+
+@pytest.mark.asyncio
+async def test_export_workflow_pdf(mock_current_user):
+    app.dependency_overrides[get_current_user] = lambda: mock_current_user
+    
+    wf_id = uuid.uuid4()
+    mock_workflow = Workflow(
+        id=wf_id,
+        patient_id="patient-123",
+        created_by=mock_current_user.id,
+        status=WorkflowStatus.AWAITING_APPROVAL,
+        quality_score=90.0,
+        result_data={"fields": {"diagnosis": "Back pain", "cpt_code": "97110"}}
+    )
+    
+    with patch("app.api.v1.endpoints.workflow.workflow_repo.get", return_value=mock_workflow):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(
+                f"/api/v1/workflow/{wf_id}/export-pdf",
+                headers={"Authorization": "Bearer some-mock-token"}
+            )
+            
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert len(response.content) > 0

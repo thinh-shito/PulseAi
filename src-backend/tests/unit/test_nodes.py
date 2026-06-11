@@ -77,6 +77,21 @@ def test_quality_node():
     assert result["quality_score"] == 81.0
     assert result["processing_status"] == "awaiting_approval"
 
+    # Deductions for whitespace-only fields
+    state["prior_auth_form"]["fields"]["procedure_code"] = "   "
+    result = quality_node(state)
+    assert result["quality_score"] == 81.0
+
+    # Deductions for empty string fields
+    state["prior_auth_form"]["fields"]["procedure_code"] = ""
+    result = quality_node(state)
+    assert result["quality_score"] == 81.0
+
+    # Deductions for None fields
+    state["prior_auth_form"]["fields"]["procedure_code"] = None
+    result = quality_node(state)
+    assert result["quality_score"] == 81.0
+
 @pytest.mark.asyncio
 async def test_full_graph_execution():
     mock_clinical = '{"icd10_codes": ["M54.16"], "summary": "Lumbar radiculopathy", "confidence_score": 0.98}'

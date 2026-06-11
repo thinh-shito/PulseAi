@@ -1,8 +1,23 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Play, Loader2, Sparkles, Paperclip, FileText, Image, X, Upload, FileType } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Play, 
+  Loader2, 
+  Sparkles, 
+  Paperclip, 
+  FileText, 
+  Image, 
+  X, 
+  Upload, 
+  FileType, 
+  RefreshCw,
+  Trash2,
+  CheckCircle,
+  AlertCircle
+} from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 
@@ -22,7 +37,8 @@ const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".doc", ".txt", ".png", ".jpg", ".
 
 function getFileIcon(name: string) {
   const ext = name.split(".").pop()?.toLowerCase();
-  if (["png", "jpg", "jpeg", "gif", "bmp"].includes(ext || "")) return <Image className="h-4 w-4 text-indigo-400" />;
+  // Using text-teal-400 instead of text-indigo-400 to comply with Purple Ban
+  if (["png", "jpg", "jpeg", "gif", "bmp"].includes(ext || "")) return <Image className="h-4 w-4 text-teal-400" />;
   if (ext === "pdf") return <FileType className="h-4 w-4 text-rose-400" />;
   if (["docx", "doc"].includes(ext || "")) return <FileText className="h-4 w-4 text-sky-400" />;
   return <FileText className="h-4 w-4 text-gray-400" />;
@@ -31,13 +47,24 @@ function getFileIcon(name: string) {
 export default function NewCasePage() {
   const [patientId, setPatientId] = useState("");
   const [rawText, setRawText] = useState("");
+  const [originalText, setOriginalText] = useState(""); // Stores original extracted text before edits
   const [loading, setLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [error, setError] = useState("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [piiConfirmed, setPiiConfirmed] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const pendingText = localStorage.getItem("pending_clinical_text");
+    if (pendingText) {
+      setRawText(pendingText);
+      localStorage.removeItem("pending_clinical_text");
+    }
+  }, []);
 
   const handleGenerateId = () => {
     setPatientId(crypto.randomUUID());
@@ -77,9 +104,12 @@ export default function NewCasePage() {
 
       const data = await res.json();
       setRawText(data.text);
+      setOriginalText(data.text); // Save initial extraction content
     } catch (err: any) {
       setError(err.message || "Failed to process file");
       setUploadedFile(null);
+      setRawText("");
+      setOriginalText("");
     } finally {
       setUploadLoading(false);
     }
@@ -88,7 +118,6 @@ export default function NewCasePage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
-    // Reset input so same file can be re-selected
     e.target.value = "";
   };
 
@@ -109,11 +138,24 @@ export default function NewCasePage() {
   const handleRemoveFile = () => {
     setUploadedFile(null);
     setRawText("");
+    setOriginalText("");
+    setPiiConfirmed(false);
+  };
+
+  const handleResetText = () => {
+    setRawText(originalText);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Validation
+    if (uploadedFile && !piiConfirmed) {
+      setError("Please confirm de-identification compliance before running the pipeline.");
+      return;
+    }
+
     setLoading(true);
 
     const token = localStorage.getItem("token");
@@ -150,11 +192,23 @@ export default function NewCasePage() {
     }
   };
 
+  // Helper values for editor feedback
+  const wordCount = useMemo(() => {
+    if (!rawText.trim()) return 0;
+    return rawText.trim().split(/\s+/).length;
+  }, [rawText]);
+
+  const charCount = useMemo(() => rawText.length, [rawText]);
+  
+  const isEdited = useMemo(() => {
+    return originalText !== "" && rawText !== originalText;
+  }, [rawText, originalText]);
+
   return (
-    <div className="min-h-screen bg-[#080b11]">
+    <div style={{ minHeight: "100vh", background: "var(--bg-base)" }}>
       <Navbar />
 
-      <main className="max-w-3xl mx-auto px-8 py-10">
+      <main className="max-w-7xl mx-auto px-8 py-10">
         <Link
           href="/dashboard"
           className="inline-flex items-center space-x-2 text-sm text-gray-400 hover:text-white mb-6 transition-all"
@@ -163,146 +217,261 @@ export default function NewCasePage() {
           <span>Back to Dashboard</span>
         </Link>
 
-        <div className="mb-8">
+        {/* Header Section */}
+        <div className="mb-8 animate-fade-in">
+          <p className="section-label" style={{ marginBottom: 6 }}>Case Creation</p>
           <h1 className="text-3xl font-extrabold tracking-wide">Submit New Patient Case</h1>
           <p className="text-sm text-gray-400 mt-1">
-            Initiate the Prior Authorization AI agent pipeline. Sensitive patient identifiers will be automatically de-identified before processing.
+            Initiate the Prior Authorization AI agent pipeline. Clinical documents will be parsed and de-identified before processing.
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 text-sm bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg">
-            {error}
+          <div className="mb-6 p-4 text-sm bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg flex items-start space-x-2.5 animate-scale-in">
+            <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="glass-card p-6 rounded-2xl space-y-5">
-            {/* Patient ID */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-300 mb-1.5 flex justify-between items-center">
-                <span>Patient Identification (UUID or Name)</span>
-                <button
-                  type="button"
-                  onClick={handleGenerateId}
-                  className="text-xs text-sky-400 hover:text-sky-300 flex items-center space-x-1"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  <span>Generate Anonymous ID</span>
-                </button>
-              </label>
-              <input
-                type="text"
-                required
-                value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
-                placeholder="Enter patient ID or full name (will be anonymized)"
-                className="block w-full px-4 py-3 bg-[#0d131f] border border-gray-800 rounded-xl focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-white placeholder-gray-600 outline-none transition-all text-sm font-mono"
-              />
-            </div>
+          {/* Main Layout Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            {/* Left Column: Case Metadata & Upload Controller (occupies 4/12 width on desktop) */}
+            <div className="lg:col-span-4 space-y-6">
+              
+              {/* Patient Info Card */}
+              <div className="panel p-6 space-y-4 animate-fade-in delay-100">
+                <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Patient Details</h3>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-1.5 flex justify-between items-center">
+                    <span>Patient ID (UUID / Name)</span>
+                    <button
+                      type="button"
+                      onClick={handleGenerateId}
+                      className="text-xs text-teal-400 hover:text-teal-300 flex items-center space-x-1 transition-all"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>Anonymize</span>
+                    </button>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={patientId}
+                    onChange={(e) => setPatientId(e.target.value)}
+                    placeholder="Enter ID or full name"
+                    className="field p-3 font-mono text-sm"
+                  />
+                </div>
 
-            {/* Clinical Notes + File Upload */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-sm font-semibold text-gray-300">
-                  Clinical Notes / Doctor Notes / Diagnosis Details
-                </label>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadLoading}
-                  className="flex items-center space-x-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-all disabled:opacity-50"
-                >
-                  {uploadLoading ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Paperclip className="h-3.5 w-3.5" />
-                  )}
-                  <span>{uploadLoading ? "Extracting..." : "Upload File"}</span>
-                </button>
+                <div className="pt-2">
+                  <span className="trust-chip">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    <span>HIPAA Compliant Scrubbing</span>
+                  </span>
+                </div>
               </div>
 
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={ACCEPTED_EXTENSIONS.join(",")}
-                onChange={handleFileChange}
-                className="hidden"
-                id="file-upload-input"
-              />
-
-              {/* Uploaded file badge */}
-              {uploadedFile && (
-                <div className="flex items-center space-x-2 mb-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                  {getFileIcon(uploadedFile.name)}
-                  <span className="text-xs text-emerald-300 flex-1 truncate">{uploadedFile.name}</span>
-                  <span className="text-xs text-gray-500">{(uploadedFile.size / 1024).toFixed(1)} KB</span>
-                  <button
-                    type="button"
-                    onClick={handleRemoveFile}
-                    className="text-gray-500 hover:text-rose-400 transition-all ml-1"
+              {/* Document Source Card */}
+              <div className="panel p-6 space-y-4 animate-fade-in delay-150">
+                <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Source Document</h3>
+                
+                {!uploadedFile && !uploadLoading ? (
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+                      dragOver 
+                        ? "border-teal-500 bg-teal-500/5" 
+                        : "border-gray-800 hover:border-gray-750 bg-[#0d131f]/40"
+                    }`}
                   >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+                    <Upload className="h-7 w-7 text-gray-500 mx-auto mb-2.5 transition-transform group-hover:-translate-y-1" />
+                    <p className="text-xs font-semibold text-gray-300">Click or drag document here</p>
+                    <p className="text-[10px] text-gray-500 mt-1">PDF, DOCX, TXT, PNG, JPG</p>
+                  </div>
+                ) : uploadLoading ? (
+                  <div className="border border-gray-800 rounded-xl p-8 text-center bg-[#0d131f]/20">
+                    <Loader2 className="h-7 w-7 text-teal-400 animate-spin mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-teal-400">Extracting clinical text...</p>
+                    <p className="text-[10px] text-gray-500 mt-1">Running NLP extraction parser</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Active Upload File Card */}
+                    <div className="flex items-center space-x-3 p-3 bg-teal-500/5 border border-teal-500/20 rounded-xl">
+                      {getFileIcon(uploadedFile!.name)}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-teal-300 truncate">{uploadedFile!.name}</p>
+                        <p className="text-[10px] text-gray-500">{(uploadedFile!.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveFile}
+                        className="text-gray-500 hover:text-rose-400 transition-all p-1"
+                        title="Remove Document"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
 
-              {/* Drag-and-drop zone + textarea */}
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`relative transition-all rounded-xl ${
-                  dragOver
-                    ? "ring-2 ring-sky-500 ring-offset-2 ring-offset-[#080b11]"
-                    : ""
-                }`}
-              >
-                <textarea
-                  required
-                  value={rawText}
-                  onChange={(e) => setRawText(e.target.value)}
-                  rows={10}
-                  placeholder={
-                    dragOver
-                      ? "Drop your file here to extract text..."
-                      : "Paste the patient's medical details, symptoms, diagnoses, insurer name, and planned procedures.\nE.g. Patient John Doe has lumbar pain, plans procedure 97110 under Aetna...\n\nOr drag & drop a PDF, DOCX, TXT, or image file above."
-                  }
-                  className="block w-full px-4 py-3 bg-[#0d131f] border border-gray-800 rounded-xl focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-white placeholder-gray-600 outline-none transition-all text-sm font-sans resize-none"
-                />
-
-                {/* Drag overlay */}
-                {dragOver && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-sky-500/10 border-2 border-dashed border-sky-500 rounded-xl pointer-events-none">
-                    <Upload className="h-8 w-8 text-sky-400 mb-2" />
-                    <p className="text-sky-400 font-semibold text-sm">Drop file to extract text</p>
-                    <p className="text-gray-500 text-xs mt-1">PDF, DOCX, TXT, PNG, JPG</p>
+                    {/* De-identification compliance checklist */}
+                    <div className="bg-[#0d131f]/40 border border-gray-800 rounded-xl p-4 space-y-3">
+                      <p className="text-[11px] text-gray-400 leading-normal">
+                        Verify that the extracted note is ready. Sensitive patient identifiers will be automatically de-identified before processing.
+                      </p>
+                      <label className="flex items-start space-x-2.5 cursor-pointer group select-none">
+                        <input
+                          type="checkbox"
+                          checked={piiConfirmed}
+                          onChange={(e) => setPiiConfirmed(e.target.checked)}
+                          className="mt-0.5 rounded border-gray-800 bg-[#060d1f] text-teal-500 focus:ring-0"
+                        />
+                        <span className="text-[11px] text-gray-300 group-hover:text-white transition-all font-medium">
+                          I confirm clinical data is clean and ready.
+                        </span>
+                      </label>
+                    </div>
                   </div>
                 )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_EXTENSIONS.join(",")}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="file-upload-input"
+                />
               </div>
 
-              <p className="mt-2 text-xs text-gray-600">
-                Supports: PDF, DOCX, TXT, PNG, JPG — text will be extracted and de-identified automatically.
-              </p>
-            </div>
-          </div>
+              {/* Submit Action Button */}
+              <div className="animate-fade-in delay-200">
+                <button
+                  type="submit"
+                  disabled={loading || uploadLoading || !rawText.trim() || (uploadedFile !== null && !piiConfirmed)}
+                  className="btn btn-primary w-full py-3.5 h-auto text-base font-bold flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 fill-white" />
+                      <span>Run AI Pipeline</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={loading || uploadLoading}
-              className="flex items-center space-x-2 px-8 py-3.5 bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-600 hover:to-teal-600 text-white font-semibold rounded-xl transition-all shadow-lg shadow-sky-500/10 hover:shadow-sky-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  <span>Run AI Pipeline</span>
-                </>
-              )}
-            </button>
+            </div>
+
+            {/* Right Column: Dynamic Workbench Workspace (occupies 8/12 width on desktop) */}
+            <div className="lg:col-span-8">
+              
+              {/* Workspace Container Panel */}
+              <div className="panel p-6 min-h-[460px] flex flex-col justify-between animate-fade-in delay-150">
+                
+                <div className="space-y-4 flex-1 flex flex-col">
+                  {/* Workspace Header */}
+                  <div className="flex justify-between items-center pb-3 border-b border-[var(--border-subtle)]">
+                    <div className="flex items-center space-x-2.5">
+                      <FileText className="h-5 w-5 text-teal-400" />
+                      <div>
+                        <h2 className="text-base font-bold text-gray-200">
+                          {uploadedFile ? "Extracted Clinical Document Preview" : "Clinical Note Workspace"}
+                        </h2>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          {uploadedFile 
+                            ? "Review and edit parsed document contents below before submitting" 
+                            : "Enter clinical notes, codes, and details manually"
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      {isEdited && (
+                        <span className="badge badge-warning text-[10px] py-0.5 px-2">
+                          Modified
+                        </span>
+                      )}
+                      {uploadedFile && (
+                        <span className="badge badge-success text-[10px] py-0.5 px-2">
+                          Document Extracted
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Textarea Editor Area */}
+                  <div className="flex-1 flex flex-col min-h-[280px] mt-2 relative">
+                    <textarea
+                      required
+                      value={rawText}
+                      onChange={(e) => setRawText(e.target.value)}
+                      placeholder={
+                        uploadedFile 
+                          ? "Extracted text will appear here..."
+                          : "Type or paste clinical doctor notes here. Include details such as symptoms, diagnoses, ICD/CPT codes, insurance carrier name, and requested procedures (e.g., John Doe has lumbar spine pain, plans physical therapy code 97110 under Aetna)."
+                      }
+                      className="field flex-1 p-4 font-mono text-sm leading-relaxed resize-none h-full min-h-[300px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Workspace Footer Bar */}
+                <div className="mt-4 pt-3 border-t border-[var(--border-subtle)] flex flex-wrap justify-between items-center gap-3">
+                  <div className="flex items-center space-x-4 text-xs text-gray-500 font-mono">
+                    <span>Words: <strong className="text-gray-400">{wordCount}</strong></span>
+                    <span>Characters: <strong className="text-gray-400">{charCount}</strong></span>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {isEdited && (
+                      <button
+                        type="button"
+                        onClick={handleResetText}
+                        className="btn btn-secondary text-xs h-8 px-3 py-1 flex items-center space-x-1"
+                        title="Revert all changes back to original extracted text"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        <span>Revert to Original</span>
+                      </button>
+                    )}
+                    {uploadedFile && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveFile}
+                        className="btn btn-ghost text-xs text-rose-400 hover:bg-rose-500/10 h-8 px-3 py-1 flex items-center space-x-1"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span>Clear Document</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+              
+              {/* Helpful Tips Alert Banner */}
+              <div className="mt-4 p-4 bg-[#0d131f]/30 border border-gray-850 rounded-xl flex items-start space-x-2.5 text-xs text-gray-400 animate-fade-in delay-250">
+                <Sparkles className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-gray-300">Tips for Higher Extraction Quality:</p>
+                  <ul className="list-disc list-inside space-y-1 text-gray-400 pl-1">
+                    <li>Ensure prior authorization requested code is clear (e.g. CPT 97110, ICD-10 M54.5).</li>
+                    <li>Specify the exact insurer name (e.g. Aetna, UnitedHealthcare, Cigna) to trigger correct routing.</li>
+                    <li>Review auto-extracted text for any character noise (e.g. OCR artifact chars) and correct them manually above.</li>
+                  </ul>
+                </div>
+              </div>
+
+            </div>
+
           </div>
         </form>
       </main>

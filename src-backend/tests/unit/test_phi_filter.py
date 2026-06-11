@@ -7,8 +7,8 @@ def test_anonymize_email():
     assert anonymize_phi(text) == expected
 
 def test_anonymize_phone():
-    text = "Call patient at 123-456-7890 or (987) 654-3210."
-    expected = "Call patient at [PHONE] or [PHONE]."
+    text = "Call patient at 123-456-7890 or (987) 654-3210 or 555-0199."
+    expected = "Call patient at [PHONE] or [PHONE] or [PHONE]."
     assert anonymize_phi(text) == expected
 
 def test_anonymize_ssn_id():

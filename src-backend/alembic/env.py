@@ -12,6 +12,7 @@ from app.core.database import Base
 from app.domain.models.user import User, TokenBlacklist  # noqa: F401
 from app.domain.models.workflow import Workflow, ClinicalRecord  # noqa: F401
 from app.domain.models.audit_log import AuditLog  # noqa: F401
+from app.domain.models.pa_templates import PATemplate  # noqa: F401
 
 from app.core.config import settings
 

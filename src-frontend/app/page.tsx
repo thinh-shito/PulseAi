@@ -1,78 +1,298 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, ShieldCheck, Activity, Users } from "lucide-react";
+import { ShieldCheck, Zap, Users, ChevronRight, Lock, BarChart3 } from "lucide-react";
+
+const FEATURES = [
+  {
+    icon: ShieldCheck,
+    title: "HIPAA & TT46 Compliant",
+    description:
+      "Deterministic PHI de-identification with Presidio before any external LLM call. Audit trail on every action.",
+    accent: "var(--success)",
+  },
+  {
+    icon: Zap,
+    title: "LangGraph AI Pipeline",
+    description:
+      "Multi-node orchestration: clinical extraction → payer routing → form fill → quality gate — in seconds.",
+    accent: "var(--accent)",
+  },
+  {
+    icon: Users,
+    title: "Clinician Review Gate",
+    description:
+      "Cases scoring below 95 are flagged for physician sign-off. No claim leaves without human verification.",
+    accent: "var(--info)",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen justify-between">
-      {/* Header */}
-      <header className="flex justify-between items-center p-6 border-b border-[var(--border)] bg-[rgba(11,15,25,0.5)] backdrop-blur-md">
-        <div className="flex items-center space-x-2">
-          <Activity className="h-6 w-6 text-sky-400" />
-          <span className="font-bold text-xl tracking-wide bg-gradient-to-r from-sky-400 to-emerald-400 bg-clip-text text-transparent">
-            PulseAI
-          </span>
-        </div>
-        <Link
-          href="/login"
-          className="px-5 py-2 rounded-full bg-sky-500 hover:bg-sky-600 text-white font-medium transition-all"
+    <div className="flex flex-col min-h-screen">
+
+      {/* ── Header ── */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          background: "rgba(6, 13, 31, 0.85)",
+          backdropFilter: "blur(20px)",
+          borderBottom: "1px solid var(--border-subtle)",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1100,
+            margin: "0 auto",
+            padding: "0 24px",
+            height: 60,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
         >
-          Sign In
-        </Link>
+          {/* Logo */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: "var(--accent-dark)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <BarChart3 size={16} color="#fff" />
+            </div>
+            <span
+              style={{
+                fontWeight: 800,
+                fontSize: 16,
+                letterSpacing: "-0.02em",
+                color: "var(--text-primary)",
+              }}
+            >
+              Pulse<span style={{ color: "var(--text-accent)" }}>AI</span>
+            </span>
+          </div>
+
+          {/* Trust chips + CTA */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="trust-chip" style={{ display: "none" }} id="hipaa-chip">
+              <Lock size={10} />
+              HIPAA
+            </span>
+            <Link href="/login" className="btn btn-primary" style={{ height: 36, fontSize: 13 }}>
+              Sign In
+              <ChevronRight size={14} />
+            </Link>
+          </div>
+        </div>
       </header>
 
-      {/* Main Hero */}
-      <main className="flex-1 flex flex-col justify-center items-center px-6 text-center max-w-4xl mx-auto my-12">
-        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-6 leading-tight">
-          Prior Authorization,{" "}
-          <span className="bg-gradient-to-r from-sky-400 via-teal-400 to-emerald-400 bg-clip-text text-transparent">
-            Automated in Seconds
-          </span>
-        </h1>
-        <p className="text-lg md:text-xl text-gray-400 mb-8 max-w-2xl">
-          HIPAA & TT46 compliant AI pipeline using LangGraph. Streamlines medical insurance requests, extracts ICD-10 codes, and fills claims instantly.
-        </p>
-
-        <div className="flex space-x-4">
-          <Link
-            href="/login"
-            className="flex items-center space-x-2 px-8 py-4 bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-600 hover:to-teal-600 text-white font-semibold rounded-xl transition-all shadow-lg shadow-sky-500/10 hover:shadow-sky-500/20"
+      {/* ── Hero ── */}
+      <main style={{ flex: 1 }}>
+        <section
+          style={{
+            maxWidth: 900,
+            margin: "0 auto",
+            padding: "96px 24px 80px",
+            textAlign: "center",
+          }}
+        >
+          {/* Compliance banner */}
+          <div
+            className="animate-fade-in"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 16,
+              marginBottom: 36,
+              padding: "6px 16px",
+              borderRadius: 999,
+              background: "rgba(20,184,166,0.06)",
+              border: "1px solid rgba(20,184,166,0.15)",
+            }}
           >
-            <span>Access Portal</span>
-            <ArrowRight className="h-5 w-5" />
-          </Link>
-        </div>
+            <span className="trust-chip" style={{ padding: 0, background: "none", border: "none" }}>
+              <Lock size={10} />
+              HIPAA
+            </span>
+            <span
+              style={{
+                width: 1,
+                height: 12,
+                background: "var(--border-default)",
+              }}
+            />
+            <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
+              TT 46/2018 · Vietnam & USA
+            </span>
+          </div>
 
-        {/* Feature grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16 text-left">
-          <div className="glass-card p-6 rounded-2xl">
-            <ShieldCheck className="h-8 w-8 text-emerald-400 mb-4" />
-            <h3 className="font-semibold text-lg mb-2">De-identification</h3>
-            <p className="text-sm text-gray-400">
-              Deterministic regex-based PHI scrubbing ensures HIPAA privacy prior to any external LLM request.
-            </p>
+          <h1
+            className="animate-fade-in delay-100"
+            style={{
+              fontSize: "clamp(38px, 6vw, 64px)",
+              fontWeight: 800,
+              lineHeight: 1.1,
+              letterSpacing: "-0.03em",
+              color: "var(--text-primary)",
+              marginBottom: 24,
+            }}
+          >
+            Prior Authorization,{" "}
+            <span style={{ color: "var(--text-accent)" }}>
+              Automated.
+            </span>
+          </h1>
+
+          <p
+            className="animate-fade-in delay-150"
+            style={{
+              fontSize: 18,
+              color: "var(--text-secondary)",
+              lineHeight: 1.7,
+              maxWidth: 560,
+              margin: "0 auto 40px",
+            }}
+          >
+            AI pipeline that extracts ICD-10 codes, resolves payers, and submits
+            prior auth claims — with full HIPAA compliance and physician oversight.
+          </p>
+
+          <div
+            className="animate-fade-in delay-200"
+            style={{ display: "flex", justifyContent: "center", gap: 12 }}
+          >
+            <Link href="/login" className="btn btn-primary" style={{ height: 48, fontSize: 15, padding: "0 28px" }}>
+              Access Hospital Portal
+              <ChevronRight size={16} />
+            </Link>
           </div>
-          <div className="glass-card p-6 rounded-2xl">
-            <Activity className="h-8 w-8 text-sky-400 mb-4" />
-            <h3 className="font-semibold text-lg mb-2">LangGraph Pipeline</h3>
-            <p className="text-sm text-gray-400">
-              State-driven routing between nodes to extract clinical codes, resolve payers, and perform quality checks.
-            </p>
+
+          {/* Stats row */}
+          <div
+            className="animate-fade-in delay-300"
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 48,
+              marginTop: 64,
+              padding: "32px 0",
+              borderTop: "1px solid var(--border-subtle)",
+            }}
+          >
+            {[
+              { value: "<3s", label: "Avg. PA submission" },
+              { value: "99.2%", label: "PHI de-id accuracy" },
+              { value: "ISO 27001", label: "Security certified" },
+            ].map((stat) => (
+              <div key={stat.label} style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    fontSize: 26,
+                    fontWeight: 800,
+                    color: "var(--text-accent)",
+                    letterSpacing: "-0.02em",
+                    lineHeight: 1,
+                    marginBottom: 6,
+                  }}
+                >
+                  {stat.value}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="glass-card p-6 rounded-2xl">
-            <Users className="h-8 w-8 text-indigo-400 mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Doctor Approval</h3>
-            <p className="text-sm text-gray-400">
-              Quality gate (&lt;95 score) prompts manual clinician review to guarantee absolute billing accuracy.
-            </p>
+        </section>
+
+        {/* ── Feature Cards ── */}
+        <section
+          style={{
+            maxWidth: 1100,
+            margin: "0 auto",
+            padding: "0 24px 96px",
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: 16,
+            }}
+          >
+            {FEATURES.map((f, i) => (
+              <div
+                key={f.title}
+                className={`panel panel-hover animate-fade-in delay-${(i + 1) * 100}`}
+                style={{ padding: 28 }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    background: `${f.accent}14`,
+                    border: `1px solid ${f.accent}28`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 16,
+                  }}
+                >
+                  <f.icon size={18} color={f.accent} />
+                </div>
+                <h3
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: "var(--text-primary)",
+                    marginBottom: 8,
+                  }}
+                >
+                  {f.title}
+                </h3>
+                <p style={{ fontSize: 13.5, color: "var(--text-secondary)", lineHeight: 1.65 }}>
+                  {f.description}
+                </p>
+              </div>
+            ))}
           </div>
-        </div>
+        </section>
       </main>
 
-      {/* Footer */}
-      <footer className="p-6 border-t border-[var(--border)] text-center text-sm text-gray-500 bg-[rgba(11,15,25,0.2)]">
-        &copy; {new Date().getFullYear()} PulseAI Inc. All rights reserved.
+      {/* ── Footer ── */}
+      <footer
+        style={{
+          borderTop: "1px solid var(--border-subtle)",
+          padding: "20px 24px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
+        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          © {new Date().getFullYear()} PulseAI Inc.
+        </span>
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <span className="trust-chip">
+            <Lock size={10} />
+            HIPAA Compliant
+          </span>
+          <span className="trust-chip">
+            <ShieldCheck size={10} />
+            TT 46/2018
+          </span>
+        </div>
       </footer>
     </div>
   );

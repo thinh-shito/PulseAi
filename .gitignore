@@ -52,3 +52,14 @@ secrets/
 # Deployment artifacts (large binary files)
 *.zip
 workflow_new_screenshot.png
+
+# Agent files
+ORIGINAL_REQUEST.md
+PROJECT.md
+TEST_INFRA.md
+TEST_READY.md
+progress.md
+.agents/
+task-*.log
+*.task
+

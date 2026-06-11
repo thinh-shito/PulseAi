@@ -29,7 +29,7 @@ def anonymize_phi(text: str) -> str:
     # 3. Phone numbers
     # We match standard phone numbers and parenthesized area codes
     text = re.sub(r"\(\d{3}\)[-.\s]?\d{3}[-.\s]?\d{4}", "[PHONE]", text)
-    text = re.sub(r"\b(?:\+?\d{1,3}[-.\s]?)?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b", "[PHONE]", text)
+    text = re.sub(r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\d{3}[-.\s]?)?\d{3}[-.\s]?\d{4}\b", "[PHONE]", text)
 
     # 4. Dates of birth / dates (e.g. 12/12/1990, 1990-12-12)
     text = re.sub(r"\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b", "[DATE]", text)

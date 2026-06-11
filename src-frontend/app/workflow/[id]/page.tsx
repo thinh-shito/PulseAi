@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, CheckCircle, AlertTriangle, ShieldCheck, FileText, Check, X, XCircle } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle, AlertTriangle, ShieldCheck, FileText, Check, X, XCircle, Pencil, Download } from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 
@@ -29,6 +29,9 @@ export default function WorkflowDetailPage() {
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  
+  const [editedFields, setEditedFields] = useState<Record<string, string>>({});
+  const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
 
   const fetchDetails = async () => {
     const token = localStorage.getItem("token");
@@ -61,7 +64,8 @@ export default function WorkflowDetailPage() {
     setSseActive(true);
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    const es = new EventSource(`${API_URL}/api/v1/workflow/${id}/stream`);
+    const token = localStorage.getItem("token");
+    const es = new EventSource(`${API_URL}/api/v1/workflow/${id}/stream${token ? `?token=${token}` : ""}`);
     eventSourceRef.current = es;
 
     es.onmessage = (event) => {
@@ -100,6 +104,81 @@ export default function WorkflowDetailPage() {
       eventSourceRef.current = null;
       setSseActive(false);
     };
+  };
+
+  useEffect(() => {
+    const fields = workflow?.result_data?.fields;
+    if (fields) {
+      setEditedFields(fields);
+    }
+  }, [workflow?.id, workflow?.result_data?.fields]);
+
+  const hasPendingChanges = useMemo(() => {
+    const fields = workflow?.result_data?.fields;
+    if (!fields) return false;
+    return Object.keys(fields).some(
+      (key) => editedFields[key] !== fields[key]
+    );
+  }, [workflow?.result_data?.fields, editedFields]);
+
+  const handleSaveChanges = async () => {
+    setActionLoading(true);
+    setError("");
+    const token = localStorage.getItem("token");
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${API_URL}/api/v1/workflow/${id}/fields`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ fields: editedFields }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Failed to save field changes");
+      }
+
+      await fetchDetails();
+    } catch (err: any) {
+      setError(err.message || "Failed to save field changes");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    setActionLoading(true);
+    setError("");
+    const token = localStorage.getItem("token");
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${API_URL}/api/v1/workflow/${id}/export-pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to export PDF");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `prior_auth_${id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err.message || "Failed to export PDF");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -311,26 +390,50 @@ export default function WorkflowDetailPage() {
                 </div>
               </div>
 
-              {workflow.status === "awaiting_approval" && (role === "doctor" || role === "admin") && (
-                <div className="flex items-center space-x-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {workflow.result_data && (
                   <button
                     disabled={actionLoading}
-                    onClick={() => handleAction("reject")}
-                    className="flex items-center space-x-2 px-5 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold rounded-xl transition-all text-sm"
+                    onClick={handleExportPDF}
+                    className="flex items-center space-x-2 px-5 py-2.5 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-400 font-semibold rounded-xl transition-all text-sm"
                   >
-                    <X className="h-4 w-4" />
-                    <span>Reject Request</span>
+                    <Download className="h-4 w-4" />
+                    <span>Export PDF</span>
                   </button>
+                )}
+
+                {hasPendingChanges && (
                   <button
                     disabled={actionLoading}
-                    onClick={() => handleAction("approve")}
-                    className="flex items-center space-x-2 px-5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-semibold rounded-xl transition-all text-sm glow-active"
+                    onClick={handleSaveChanges}
+                    className="flex items-center space-x-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl transition-all text-sm shadow-lg shadow-sky-500/10 hover:shadow-sky-500/20"
                   >
-                    <Check className="h-4 w-4" />
-                    <span>Approve Claim</span>
+                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    <span>Save Changes</span>
                   </button>
-                </div>
-              )}
+                )}
+
+                {workflow.status === "awaiting_approval" && (role === "doctor" || role === "admin") && (
+                  <>
+                    <button
+                      disabled={actionLoading}
+                      onClick={() => handleAction("reject")}
+                      className="flex items-center space-x-2 px-5 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold rounded-xl transition-all text-sm"
+                    >
+                      <X className="h-4 w-4" />
+                      <span>Reject Request</span>
+                    </button>
+                    <button
+                      disabled={actionLoading}
+                      onClick={() => handleAction("approve")}
+                      className="flex items-center space-x-2 px-5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-semibold rounded-xl transition-all text-sm glow-active"
+                    >
+                      <Check className="h-4 w-4" />
+                      <span>Approve Claim</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -338,10 +441,57 @@ export default function WorkflowDetailPage() {
               <div>
                 <h3 className="font-semibold text-gray-400 text-xs tracking-wider uppercase mb-4">Extracted Fields</h3>
                 <div className="space-y-4">
-                  {Object.entries(workflow.result_data.fields).map(([key, val]) => (
-                    <div key={key} className="p-4 bg-[#0d131f] border border-gray-850 rounded-xl">
+                  {Object.entries(editedFields).map(([key, val]) => (
+                    <div key={key} className="p-4 bg-[#0d131f] border border-gray-850 rounded-xl group relative">
                       <p className="text-xs text-gray-500 capitalize">{key.replace("_", " ")}</p>
-                      <p className="text-sm font-semibold text-gray-200 mt-1">{val || "N/A"}</p>
+                      {editingFieldKey === key ? (
+                        <div className="flex items-center space-x-2 mt-1">
+                          <input
+                            type="text"
+                            value={val || ""}
+                            onChange={(e) => setEditedFields(prev => ({ ...prev, [key]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                setEditingFieldKey(null);
+                              } else if (e.key === "Escape") {
+                                setEditedFields(prev => ({ ...prev, [key]: workflow.result_data!.fields[key] }));
+                                setEditingFieldKey(null);
+                              }
+                            }}
+                            className="flex-1 bg-[#060d1f] border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-sky-500 font-sans"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setEditingFieldKey(null)}
+                            className="text-emerald-400 hover:text-emerald-300 p-1"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditedFields(prev => ({ ...prev, [key]: workflow.result_data!.fields[key] }));
+                              setEditingFieldKey(null);
+                            }}
+                            className="text-rose-400 hover:text-rose-300 p-1"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-start mt-1">
+                          <p className="text-sm font-semibold text-gray-200">{val || "N/A"}</p>
+                          <button
+                            type="button"
+                            onClick={() => setEditingFieldKey(key)}
+                            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity text-gray-500 hover:text-sky-400 p-1"
+                            title="Edit field"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

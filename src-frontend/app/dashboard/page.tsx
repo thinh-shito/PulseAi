@@ -3,7 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, Eye, CheckCircle2, XCircle, Clock, AlertTriangle, Search } from "lucide-react";
+import {
+  Plus,
+  RefreshCw,
+  Eye,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertTriangle,
+  Search,
+  FileText,
+} from "lucide-react";
 import Navbar from "@/components/Navbar";
 
 interface Workflow {
@@ -16,6 +26,44 @@ interface Workflow {
   created_at: string;
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
+    approved:  { label: "Approved",  cls: "badge badge-success", icon: <CheckCircle2 size={10} /> },
+    completed: { label: "Completed", cls: "badge badge-success", icon: <CheckCircle2 size={10} /> },
+    rejected:  { label: "Rejected",  cls: "badge badge-danger",  icon: <XCircle size={10} /> },
+    failed:    { label: "Failed",    cls: "badge badge-danger",  icon: <AlertTriangle size={10} /> },
+    awaiting_approval: {
+      label: "Needs Review",
+      cls: "badge badge-warning",
+      icon: <AlertTriangle size={10} />,
+    },
+  };
+
+  const cfg = map[status] ?? {
+    label: status,
+    cls: "badge badge-neutral",
+    icon: <Clock size={10} />,
+  };
+
+  return (
+    <span className={cfg.cls}>
+      {cfg.icon}
+      {cfg.label}
+    </span>
+  );
+}
+
+function QualityScore({ score }: { score?: number | null }) {
+  if (score == null) return <span style={{ color: "var(--text-muted)", fontSize: 13 }}>—</span>;
+  const cls = score >= 95 ? "score-high" : score >= 75 ? "score-mid" : "score-low";
+  return (
+    <span className={cls} style={{ fontWeight: 700, fontSize: 14, fontVariantNumeric: "tabular-nums" }}>
+      {score.toFixed(1)}
+      <span style={{ fontSize: 11, fontWeight: 500, marginLeft: 1 }}>%</span>
+    </span>
+  );
+}
+
 export default function DashboardPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,10 +74,7 @@ export default function DashboardPage() {
   const fetchWorkflows = async () => {
     setError("");
     const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+    if (!token) { router.push("/login"); return; }
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -37,18 +82,10 @@ export default function DashboardPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (res.status === 401) {
-        localStorage.clear();
-        router.push("/login");
-        return;
-      }
+      if (res.status === 401) { localStorage.clear(); router.push("/login"); return; }
+      if (!res.ok) throw new Error("Failed to load workflows");
 
-      if (!res.ok) {
-        throw new Error("Failed to load workflows");
-      }
-
-      const data = await res.json();
-      setWorkflows(data);
+      setWorkflows(await res.json());
     } catch (err: any) {
       setError(err.message || "Failed to load workflows");
     } finally {
@@ -58,150 +95,256 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchWorkflows();
-    const interval = setInterval(fetchWorkflows, 10000); // refresh every 10s
+    const interval = setInterval(fetchWorkflows, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "approved":
-      case "completed":
-        return (
-          <span className="inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <CheckCircle2 className="h-3 w-3" />
-            <span className="capitalize">{status}</span>
-          </span>
-        );
-      case "rejected":
-        return (
-          <span className="inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-            <XCircle className="h-3 w-3" />
-            <span className="capitalize">{status}</span>
-          </span>
-        );
-      case "awaiting_approval":
-        return (
-          <span className="inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 glow-active">
-            <AlertTriangle className="h-3 w-3" />
-            <span>Awaiting Approval</span>
-          </span>
-        );
-      case "failed":
-        return (
-          <span className="inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-semibold bg-gray-500/10 text-gray-400 border border-gray-500/20">
-            <AlertTriangle className="h-3 w-3" />
-            <span>Failed</span>
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
-            <Clock className="h-3 w-3 animate-pulse" />
-            <span className="capitalize">{status}</span>
-          </span>
-        );
-    }
-  };
-
-  const filteredWorkflows = workflows.filter((w) =>
+  const filtered = workflows.filter((w) =>
     w.patient_id.toLowerCase().includes(search.toLowerCase())
   );
 
+  const stats = {
+    total:    workflows.length,
+    approved: workflows.filter((w) => ["approved", "completed"].includes(w.status)).length,
+    pending:  workflows.filter((w) => w.status === "awaiting_approval").length,
+  };
+
   return (
-    <div className="min-h-screen bg-[#080b11]">
+    <div style={{ minHeight: "100vh", background: "var(--bg-base)" }}>
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-8 py-10">
-        {/* Header Actions */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+      <main
+        style={{
+          maxWidth: 1280,
+          margin: "0 auto",
+          padding: "32px 24px 48px",
+        }}
+      >
+        {/* ── Page header ── */}
+        <div
+          className="animate-fade-in"
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 16,
+            marginBottom: 28,
+          }}
+        >
           <div>
-            <h1 className="text-3xl font-extrabold tracking-wide">Cases Dashboard</h1>
-            <p className="text-sm text-gray-400 mt-1">Track and manage prior authorization workflows</p>
-          </div>
-          
-          <div className="flex items-center space-x-3 w-full sm:w-auto">
-            <button
-              onClick={fetchWorkflows}
-              className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-900 border border-gray-800 text-gray-400 hover:text-white transition-all"
+            <p className="section-label" style={{ marginBottom: 6 }}>Prior Authorization</p>
+            <h1
+              style={{
+                fontSize: 26,
+                fontWeight: 800,
+                letterSpacing: "-0.02em",
+                color: "var(--text-primary)",
+              }}
             >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Cases Dashboard
+            </h1>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              id="dashboard-refresh-btn"
+              onClick={fetchWorkflows}
+              className="btn-icon"
+              title="Refresh"
+              aria-label="Refresh cases"
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             </button>
             <Link
               href="/workflow/new"
-              className="flex items-center space-x-2 px-5 h-11 bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-600 hover:to-teal-600 text-white font-semibold rounded-xl transition-all shadow-lg shadow-sky-500/5 hover:shadow-sky-500/10"
+              id="dashboard-new-case-btn"
+              className="btn btn-primary"
             >
-              <Plus className="h-5 w-5" />
-              <span>Submit Case</span>
+              <Plus size={15} />
+              Submit Case
             </Link>
           </div>
         </div>
 
+        {/* ── Stat row ── */}
+        <div
+          className="animate-fade-in delay-100"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 12,
+            marginBottom: 24,
+          }}
+        >
+          {[
+            { label: "Total Cases",    value: stats.total,    color: "var(--text-accent)" },
+            { label: "Approved",        value: stats.approved, color: "var(--success)" },
+            { label: "Needs Review",    value: stats.pending,  color: "var(--warning)" },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="panel"
+              style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 4 }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                {s.label}
+              </span>
+              <span style={{ fontSize: 28, fontWeight: 800, color: s.color, letterSpacing: "-0.02em", lineHeight: 1 }}>
+                {s.value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Error ── */}
         {error && (
-          <div className="mb-6 p-4 text-sm bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg">
+          <div
+            role="alert"
+            style={{
+              marginBottom: 16,
+              padding: "12px 14px",
+              borderRadius: "var(--radius-md)",
+              background: "var(--danger-dim)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              color: "var(--danger)",
+              fontSize: 13,
+            }}
+          >
             {error}
           </div>
         )}
 
-        {/* Filter input */}
-        <div className="relative mb-6">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-            <Search className="h-5 w-5" />
-          </span>
+        {/* ── Search ── */}
+        <div
+          className="animate-fade-in delay-150"
+          style={{ position: "relative", marginBottom: 16, maxWidth: 360 }}
+        >
+          <Search
+            size={14}
+            color="var(--text-muted)"
+            style={{
+              position: "absolute",
+              left: 12,
+              top: "50%",
+              transform: "translateY(-50%)",
+              pointerEvents: "none",
+            }}
+          />
           <input
+            id="dashboard-search-input"
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by Patient ID (UUID)..."
-            className="block w-full max-w-md pl-10 pr-4 py-2.5 bg-[#0d131f] border border-gray-800 rounded-xl focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-white placeholder-gray-600 outline-none transition-all text-sm"
+            placeholder="Search by Patient ID..."
+            className="field"
+            style={{ paddingLeft: 36, paddingRight: 14, height: 38, fontSize: 13 }}
           />
         </div>
 
-        {/* Workflows table */}
-        <div className="glass-card rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+        {/* ── Table ── */}
+        <div
+          className="panel animate-fade-in delay-200"
+          style={{ overflow: "hidden" }}
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table className="data-table">
               <thead>
-                <tr className="border-b border-gray-800/80 bg-gray-900/30 text-xs font-semibold tracking-wider text-gray-400 uppercase">
-                  <th className="px-6 py-4">Patient ID</th>
-                  <th className="px-6 py-4">Payer</th>
-                  <th className="px-6 py-4">Quality Score</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Date Created</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                <tr>
+                  <th>Patient ID</th>
+                  <th>Payer</th>
+                  <th>Quality</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th style={{ textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800/50 text-sm">
-                {filteredWorkflows.length === 0 ? (
+              <tbody>
+                {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center text-gray-500">
-                      {loading ? "Loading cases..." : "No cases found"}
+                    <td
+                      colSpan={6}
+                      style={{
+                        padding: "48px 24px",
+                        textAlign: "center",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {loading ? (
+                        <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                          <RefreshCw size={14} className="animate-spin" />
+                          Loading cases...
+                        </span>
+                      ) : (
+                        <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                          <FileText size={16} />
+                          No cases found
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ) : (
-                  filteredWorkflows.map((w) => (
-                    <tr key={w.id} className="hover:bg-gray-800/10 transition-colors">
-                      <td className="px-6 py-4 font-medium font-mono text-sky-400/80">{w.patient_id}</td>
-                      <td className="px-6 py-4 text-gray-300 font-semibold">{w.payer_type || "N/A"}</td>
-                      <td className="px-6 py-4">
-                        {w.quality_score !== undefined && w.quality_score !== null ? (
-                          <span className={`font-semibold ${w.quality_score >= 95 ? "text-emerald-400" : "text-amber-400"}`}>
-                            {w.quality_score.toFixed(1)}%
-                          </span>
-                        ) : (
-                          <span className="text-gray-600">N/A</span>
-                        )}
+                  filtered.map((w) => (
+                    <tr key={w.id}>
+                      <td>
+                        <span
+                          style={{
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            fontSize: 12,
+                            color: "var(--text-accent)",
+                            letterSpacing: "0.02em",
+                          }}
+                        >
+                          {w.patient_id.slice(0, 8)}…
+                        </span>
                       </td>
-                      <td className="px-6 py-4">{getStatusBadge(w.status)}</td>
-                      <td className="px-6 py-4 text-gray-400">
-                        {new Date(w.created_at).toLocaleDateString()}
+                      <td>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text-primary)" }}>
+                          {w.payer_type ?? "—"}
+                        </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td>
+                        <QualityScore score={w.quality_score} />
+                      </td>
+                      <td>
+                        <StatusBadge status={w.status} />
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                          {new Date(w.created_at).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
                         <Link
                           href={`/workflow/${w.id}`}
-                          className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 font-semibold text-xs transition-all"
+                          id={`workflow-view-${w.id}`}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            padding: "5px 10px",
+                            borderRadius: "var(--radius-sm)",
+                            background: "var(--accent-dim)",
+                            border: "1px solid rgba(20,184,166,0.15)",
+                            color: "var(--text-accent)",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            textDecoration: "none",
+                            transition: "background 150ms",
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLAnchorElement).style.background = "rgba(20,184,166,0.2)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLAnchorElement).style.background = "var(--accent-dim)";
+                          }}
                         >
-                          <Eye className="h-3.5 w-3.5" />
-                          <span>View Detail</span>
+                          <Eye size={12} />
+                          View
                         </Link>
                       </td>
                     </tr>

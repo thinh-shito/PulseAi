@@ -16,7 +16,7 @@ def quality_node(state: AgentState) -> dict:
         fields = form.get("fields", {})
         if isinstance(fields, dict):
             for val in fields.values():
-                if not val or val == "N/A":
+                if not val or str(val).strip() == "" or str(val).strip().upper() == "N/A":
                     deductions += 15
                     
     quality_score = max(0.0, min(100.0, base_score - deductions))
