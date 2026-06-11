@@ -128,6 +128,8 @@ export default function ChatPanel() {
     router.push("/workflow/new");
   };
 
+  if (pathname === "/" || pathname === "/login") return null;
+
   return (
     <div
       className={`fixed top-0 right-0 h-full w-[400px] z-50 bg-[#060d1f] border-l border-gray-800 shadow-2xl transition-transform duration-300 transform flex flex-col ${

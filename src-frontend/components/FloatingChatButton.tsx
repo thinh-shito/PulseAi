@@ -1,11 +1,15 @@
 "use client";
 
 import { MessageSquare } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export default function FloatingChatButton() {
+  const pathname = usePathname();
   const handleToggle = () => {
     window.dispatchEvent(new CustomEvent("toggle-chat"));
   };
+
+  if (pathname === "/" || pathname === "/login") return null;
 
   return (
     <button
