@@ -1,13 +1,18 @@
-name: PulseAI CI
+name: Backend CI
 
 on:
   push:
     branches: [main, develop]
+    paths:
+      - 'src-backend/**'
+      - '.github/workflows/ci-backend.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'src-backend/**'
+      - '.github/workflows/ci-backend.yml'
 
 jobs:
-  # ── Backend: lint + migrate + test ──────────────────────────
   backend:
     name: Backend (lint + test)
     runs-on: ubuntu-latest
@@ -120,44 +125,9 @@ jobs:
           print(f'✅ Quality gate thresholds correct (low={result[\"quality_score\"]:.1f}%, high={result2[\"quality_score\"]:.1f}%)')
           "
 
-  # ── Frontend: type-check + build ────────────────────────────
-  frontend:
-    name: Frontend (typecheck + build)
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js 18
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache: "npm"
-          cache-dependency-path: src-frontend/package-lock.json
-
-      - name: Install dependencies
-        run: |
-          cd src-frontend
-          npm ci
-
-      - name: TypeScript type check
-        run: |
-          cd src-frontend
-          npx tsc --noEmit
-          echo "✅ TypeScript check passed"
-
-      - name: Build Next.js
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:8000
-        run: |
-          cd src-frontend
-          npm run build
-          echo "✅ Next.js build successful"
-
-  # ── Docker build check (main only) ──────────────────────────
-  docker-build:
-    name: Docker build check
-    needs: [backend, frontend]
+  docker-build-backend:
+    name: Docker Build Backend Check
+    needs: [backend]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
@@ -168,10 +138,3 @@ jobs:
         run: |
           docker build -t pulseai-backend:ci ./src-backend
           echo "✅ Backend Docker build passed"
-
-      - name: Build frontend image
-        run: |
-          docker build -t pulseai-frontend:ci \
-            -f ./src-frontend/Dockerfile.prod \
-            ./src-frontend
-          echo "✅ Frontend Docker build passed"

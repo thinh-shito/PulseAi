@@ -1,0 +1,63 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src-frontend/**'
+      - '.github/workflows/ci-frontend.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src-frontend/**'
+      - '.github/workflows/ci-frontend.yml'
+
+jobs:
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: src-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd src-frontend
+          npm ci
+
+      - name: TypeScript type check
+        run: |
+          cd src-frontend
+          npx tsc --noEmit
+          echo "✅ TypeScript check passed"
+
+      - name: Build Next.js
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: |
+          cd src-frontend
+          npm run build
+          echo "✅ Next.js build successful"
+
+  docker-build-frontend:
+    name: Docker Build Frontend Check
+    needs: [frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build frontend image
+        run: |
+          docker build -t pulseai-frontend:ci \
+            -f ./src-frontend/Dockerfile.prod \
+            ./src-frontend
+          echo "✅ Frontend Docker build passed"

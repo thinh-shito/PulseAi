@@ -1,22 +1,24 @@
-name: Deploy to Production
+name: Deploy Frontend to Production
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'src-frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
 
 concurrency:
-  group: deploy-production
+  group: deploy-frontend-production
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy to Cloud Run
+    name: Deploy Frontend to Cloud Run
     runs-on: ubuntu-latest
     environment: production
     permissions:
       contents: read
       packages: write
-
 
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +27,7 @@ jobs:
         run: |
           echo "REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      # ── Build backend image ──────────────────────────────
+      # ── Set up Docker Buildx & GHCR login ───────────────
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -36,18 +38,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & push backend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./src-backend
-          push: true
-          tags: |
-            ghcr.io/${{ env.REPO_LC }}/backend:${{ github.sha }}
-            ghcr.io/${{ env.REPO_LC }}/backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # ── Authenticate and run Migrations first ───────────
+      # ── Authenticate to Google Cloud ────────────────────
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -55,36 +46,6 @@ jobs:
 
       - name: Set up gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
-
-      - name: Run DB migrations in Cloud Run job
-        run: |
-          gcloud run jobs create pulseai-migrate-${{ github.run_number }} \
-            --image ghcr.io/${{ env.REPO_LC }}/backend:${{ github.sha }} \
-            --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
-            --set-secrets "DATABASE_URL=pulseai-db-url:latest" \
-            --command "alembic" \
-            --args "upgrade,head" \
-            --max-retries 1 \
-            --wait || true
-          gcloud run jobs execute pulseai-migrate-${{ github.run_number }} \
-            --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
-            --wait
-
-      # ── Deploy Backend to Cloud Run ──────────────────────
-      - name: Deploy backend to Cloud Run
-        run: |
-          gcloud run deploy pulseai-backend \
-            --image ghcr.io/${{ env.REPO_LC }}/backend:${{ github.sha }} \
-            --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
-            --platform managed \
-            --allow-unauthenticated \
-            --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets "SECRET_KEY=pulseai-secret-key:latest,DATABASE_URL=pulseai-db-url:latest" \
-            --memory 1Gi \
-            --cpu 1 \
-            --min-instances 1 \
-            --max-instances 10 \
-            --port 8000
 
       # ── Retrieve dynamic Backend URL ─────────────────────
       - name: Get Backend URL
@@ -125,28 +86,23 @@ jobs:
             --port 3000
 
       # ── Verify Health ────────────────────────────────────
-      - name: Verify backend and frontend health
+      - name: Verify frontend health
         run: |
-          BACKEND_URL=$(gcloud run services describe pulseai-backend \
-            --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
-            --format 'value(status.url)')
           FRONTEND_URL=$(gcloud run services describe pulseai-frontend \
             --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
             --format 'value(status.url)')
-          echo "Backend URL: $BACKEND_URL"
           echo "Frontend URL: $FRONTEND_URL"
-          curl -f "$BACKEND_URL/health" || exit 1
           curl -f "$FRONTEND_URL" || exit 1
-          echo "✅ Both Backend & Frontend health check passed"
+          echo "✅ Frontend health check passed"
 
       - name: Notify on success
         if: success()
         run: |
-          echo "✅ Deployment ${{ github.sha }} successful at $(date -u)"
+          echo "✅ Frontend Deployment ${{ github.sha }} successful at $(date -u)"
           echo "Deployed by: ${{ github.actor }}"
 
       - name: Notify on failure
         if: failure()
         run: |
-          echo "❌ Deployment ${{ github.sha }} FAILED"
+          echo "❌ Frontend Deployment ${{ github.sha }} FAILED"
           exit 1
