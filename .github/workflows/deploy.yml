@@ -43,19 +43,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build & push frontend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./src-frontend
-          file: ./src-frontend/Dockerfile.prod
-          push: true
-          tags: |
-            ghcr.io/${{ env.REPO_LC }}/frontend:${{ github.sha }}
-            ghcr.io/${{ env.REPO_LC }}/frontend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # ── Deploy to Cloud Run ──────────────────────────────
+      # ── Authenticate and run Migrations first ───────────
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -63,21 +51,6 @@ jobs:
 
       - name: Set up gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
-
-      - name: Deploy backend to Cloud Run
-        run: |
-          gcloud run deploy pulseai-backend \
-            --image ghcr.io/${{ env.REPO_LC }}/backend:${{ github.sha }} \
-            --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
-            --platform managed \
-            --allow-unauthenticated \
-            --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets "SECRET_KEY=pulseai-secret-key:latest,DATABASE_URL=pulseai-db-url:latest" \
-            --memory 1Gi \
-            --cpu 1 \
-            --min-instances 1 \
-            --max-instances 10 \
-            --port 8000
 
       - name: Run DB migrations in Cloud Run job
         run: |
@@ -93,14 +66,74 @@ jobs:
             --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
             --wait
 
-      - name: Verify backend health
+      # ── Deploy Backend to Cloud Run ──────────────────────
+      - name: Deploy backend to Cloud Run
+        run: |
+          gcloud run deploy pulseai-backend \
+            --image ghcr.io/${{ env.REPO_LC }}/backend:${{ github.sha }} \
+            --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-secrets "SECRET_KEY=pulseai-secret-key:latest,DATABASE_URL=pulseai-db-url:latest" \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 1 \
+            --max-instances 10 \
+            --port 8000
+
+      # ── Retrieve dynamic Backend URL ─────────────────────
+      - name: Get Backend URL
+        id: get_backend_url
         run: |
           BACKEND_URL=$(gcloud run services describe pulseai-backend \
             --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
             --format 'value(status.url)')
+          echo "BACKEND_URL=$BACKEND_URL" >> $GITHUB_ENV
+
+      # ── Build & push frontend image with dynamic URL ─────
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src-frontend
+          file: ./src-frontend/Dockerfile.prod
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.BACKEND_URL }}
+          tags: |
+            ghcr.io/${{ env.REPO_LC }}/frontend:${{ github.sha }}
+            ghcr.io/${{ env.REPO_LC }}/frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Deploy Frontend to Cloud Run ─────────────────────
+      - name: Deploy frontend to Cloud Run
+        run: |
+          gcloud run deploy pulseai-frontend \
+            --image ghcr.io/${{ env.REPO_LC }}/frontend:${{ github.sha }} \
+            --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 1 \
+            --max-instances 10 \
+            --port 3000
+
+      # ── Verify Health ────────────────────────────────────
+      - name: Verify backend and frontend health
+        run: |
+          BACKEND_URL=$(gcloud run services describe pulseai-backend \
+            --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
+            --format 'value(status.url)')
+          FRONTEND_URL=$(gcloud run services describe pulseai-frontend \
+            --region ${{ vars.GCP_REGION || 'asia-southeast1' }} \
+            --format 'value(status.url)')
           echo "Backend URL: $BACKEND_URL"
+          echo "Frontend URL: $FRONTEND_URL"
           curl -f "$BACKEND_URL/health" || exit 1
-          echo "✅ Backend health check passed"
+          curl -f "$FRONTEND_URL" || exit 1
+          echo "✅ Both Backend & Frontend health check passed"
 
       - name: Notify on success
         if: success()
