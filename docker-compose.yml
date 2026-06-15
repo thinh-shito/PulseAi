@@ -3,7 +3,7 @@ version: "3.9"
 services:
   backend:
     build:
-      context: ./src-backend
+      context: ./backend
       dockerfile: Dockerfile
     container_name: pulseai-backend
     env_file: .env
@@ -15,7 +15,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./src-backend:/app
+      - ./backend:/app
     networks:
       - pulseai-internal
       - pulseai-external
@@ -53,9 +53,44 @@ services:
       retries: 5
     command: redis-server --appendonly yes
 
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: pulseai-ai-service
+    env_file: .env
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mcp-server:
+        condition: service_started
+    volumes:
+      - ./ai-service:/app
+    networks:
+      - pulseai-internal
+      - pulseai-external
+    environment:
+      - POSTGRES_HOST=postgres
+      - MCP_SERVER_URL=http://mcp-server:5000
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 4000 --reload
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    container_name: pulseai-mcp-server
+    ports:
+      - "5000:5000"
+    networks:
+      - pulseai-internal
+    volumes:
+      - ./mcp-server:/app
+
   frontend:
     build:
-      context: ./src-frontend
+      context: ./frontend
       dockerfile: Dockerfile
     container_name: pulseai-frontend
     env_file: .env
@@ -63,6 +98,7 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+      - ai-service
     networks:
       - pulseai-external
 
