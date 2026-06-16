@@ -10,25 +10,16 @@
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": "./",
     "incremental": true,
-    "ignoreDeprecations": "6.0",
     "skipLibCheck": true,
     "strictNullChecks": true,
     "noImplicitAny": true,
+    "strictPropertyInitialization": false,
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "paths": {
-      "@/*": ["src/*"],
-      "@core/*": ["src/core/*"],
-      "@domain/*": ["src/domain/*"],
-      "@infra/*": ["src/infra/*"],
-      "@modules/*": ["src/modules/*"],
-      "@common/*": ["src/common/*"]
-    }
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test"]

@@ -4,7 +4,7 @@ services:
   backend:
     image: pulseai-backend:latest
     build:
-      context: ./src-backend
+      context: ./backend
       dockerfile: Dockerfile
     container_name: pulseai-backend
     env_file: .env
@@ -18,7 +18,6 @@ services:
     networks:
       - pulseai-internal
       - pulseai-external
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 
   postgres:
@@ -53,7 +52,7 @@ services:
   frontend:
     image: pulseai-frontend:latest
     build:
-      context: ./src-frontend
+      context: ./frontend
       dockerfile: Dockerfile.prod
     container_name: pulseai-frontend
     environment:

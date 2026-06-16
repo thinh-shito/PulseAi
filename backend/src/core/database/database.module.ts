@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import databaseConfig from '../config/database.config';
 
@@ -8,8 +8,8 @@ import databaseConfig from '../config/database.config';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule.forFeature(databaseConfig)],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) =>
-        configService.get('database'),
+      useFactory: (configService: ConfigService): TypeOrmModuleOptions =>
+        configService.get<TypeOrmModuleOptions>('database')!,
     }),
   ],
 })

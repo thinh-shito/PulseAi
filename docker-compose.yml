@@ -16,10 +16,10 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - /app/node_modules
     networks:
       - pulseai-internal
       - pulseai-external
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 
   postgres:
@@ -60,7 +60,7 @@ services:
     container_name: pulseai-ai-service
     env_file: .env
     ports:
-      - "4000:4000"
+      - "3001:3001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,7 +74,7 @@ services:
     environment:
       - POSTGRES_HOST=postgres
       - MCP_SERVER_URL=http://mcp-server:5000
-    command: python -m uvicorn main:app --host 0.0.0.0 --port 4000 --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 3001 --reload
 
   mcp-server:
     build:

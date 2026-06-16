@@ -92,6 +92,24 @@ async def create_run(request: CreateRunRequest, response: Response):
     # Run ID is the same as conversation ID for simplicity
     run_id = conversation_id
     
+    # Save user message to database
+    pool = await DatabasePool.get_pool()
+    message_content = request.message
+    if request.file_content and request.file_name:
+        message_content = f"{message_content}\n--- ATTACHED FILE: {request.file_name} ---\n{request.file_content}"
+        
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO messages_v2 (conversation_id, role, content, created_at)
+            VALUES ($1, $2, $3, $4)
+            """,
+            run_id,
+            "user",
+            message_content,
+            int(datetime.now().timestamp() * 1000)
+        )
+    
     return RunResponse(
         run_id=uuid.UUID(run_id),
         session_id=uuid.UUID(session_id),
@@ -115,6 +133,18 @@ async def continue_run(run_id: str, request: ContinueRunRequest):
         
         if not conv:
             raise HTTPException(status_code=404, detail="Run not found")
+            
+        # Save follow-up user message to database
+        await conn.execute(
+            """
+            INSERT INTO messages_v2 (conversation_id, role, content, created_at)
+            VALUES ($1, $2, $3, $4)
+            """,
+            run_id,
+            "user",
+            request.message,
+            int(datetime.now().timestamp() * 1000)
+        )
     
     return RunResponse(
         run_id=uuid.UUID(run_id),
@@ -232,8 +262,17 @@ async def stream_run_events(run_id: str):
     file_content = None
     file_name = None
     if "--- ATTACHED FILE:" in user_message:
-        # Extract file info (simplified parsing)
-        pass
+        try:
+            parts = user_message.split("--- ATTACHED FILE: ")
+            if len(parts) > 1:
+                subparts = parts[1].split(" ---\n", 1)
+                if len(subparts) == 2:
+                    file_name = subparts[0].strip()
+                    file_content = subparts[1].strip()
+                    # Strip the attachment text from the user message for LLM
+                    user_message = parts[0].strip()
+        except Exception:
+            pass
     
     async def event_generator() -> AsyncGenerator[str, None]:
         """Generate SSE events from the agent loop."""
