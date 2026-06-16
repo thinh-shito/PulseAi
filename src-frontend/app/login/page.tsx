@@ -17,25 +17,24 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const formData = new URLSearchParams();
-      formData.append("username", email);
-      formData.append("password", password);
-
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const res = await fetch(`${API_URL}/api/v1/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || "Invalid credentials. Please try again.");
+        const errMsg = Array.isArray(data.message)
+          ? data.message.join(", ")
+          : data.message || data.detail || "Invalid credentials. Please try again.";
+        throw new Error(errMsg);
       }
 
-      const data = await res.json();
       localStorage.setItem("token", data.access_token);
-      localStorage.setItem("role", data.role);
+      localStorage.setItem("role", data.user?.role || data.role);
       localStorage.setItem("email", email);
 
       router.push("/dashboard");

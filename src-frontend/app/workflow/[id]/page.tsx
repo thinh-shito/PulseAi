@@ -48,7 +48,15 @@ export default function WorkflowDetailPage() {
 
       if (!res.ok) throw new Error("Workflow not found");
       const data = await res.json();
-      setWorkflow(data);
+      const mappedData: WorkflowDetails = {
+        id: data.id,
+        patient_id: data.patientId || data.patient_id,
+        status: data.status,
+        quality_score: data.qualityScore !== undefined ? data.qualityScore : data.quality_score,
+        payer_type: data.payerType || data.payer_type,
+        result_data: data.resultData || data.result_data,
+      };
+      setWorkflow(mappedData);
 
       // If status is still active (pending, processing, etc.), start SSE
       if (["pending", "processing"].includes(data.status)) {

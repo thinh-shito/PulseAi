@@ -1,13 +1,33 @@
 version: "3.9"
 
 services:
+  # ─── Python gRPC AI Service ────────────────────────────────────────────────
+  ai-service:
+    image: pulseai-ai-service:latest
+    build:
+      context: ./src-backend
+      dockerfile: Dockerfile.prod
+    container_name: pulseai-ai-service
+    env_file: .env
+    environment:
+      - GRPC_PORT=50051
+    networks:
+      - pulseai-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+  # ─── NestJS API Gateway ───────────────────────────────────────────────────
   backend:
     image: pulseai-backend:latest
     build:
-      context: ./src-backend
+      context: ./src-backend-nestjs
       dockerfile: Dockerfile
     container_name: pulseai-backend
     env_file: .env
+    environment:
+      - AI_SERVICE_URL=ai-service:50051
     ports:
       - "8000:8000"
     depends_on:
@@ -15,12 +35,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ai-service:
+        condition: service_started
     networks:
       - pulseai-internal
       - pulseai-external
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    restart: always
 
-
+  # ─── PostgreSQL ───────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: pulseai-postgres
@@ -37,7 +59,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: always
 
+  # ─── Redis ────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: pulseai-redis
@@ -49,7 +73,9 @@ services:
       timeout: 5s
       retries: 5
     command: redis-server --appendonly yes
+    restart: always
 
+  # ─── Next.js Frontend ─────────────────────────────────────────────────────
   frontend:
     image: pulseai-frontend:latest
     build:
@@ -65,13 +91,14 @@ services:
       - backend
     networks:
       - pulseai-external
+    restart: always
 
 networks:
   pulseai-internal:
     driver: bridge
-    internal: true
+    internal: true   # DB/Redis/AI-service: no outbound internet
   pulseai-external:
-    driver: bridge
+    driver: bridge   # NestJS + Frontend: controlled outbound access
 
 volumes:
   postgres_data:

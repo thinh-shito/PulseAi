@@ -1,0 +1,107 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  admin
+  doctor
+  viewer
+}
+
+enum WorkflowStatus {
+  pending
+  processing
+  awaiting_approval
+  approved
+  rejected
+  completed
+  failed
+}
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  email           String   @unique @db.VarChar(255)
+  hashedPassword String   @map("hashed_password") @db.VarChar(255)
+  fullName        String   @map("full_name") @db.VarChar(255)
+  role            Role     @default(viewer)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
+
+model TokenBlacklist {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenJti  String   @unique @map("token_jti") @db.VarChar(255)
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("token_blacklist")
+}
+
+model Workflow {
+  id                String          @id @default(uuid()) @db.Uuid
+  patientId         String          @map("patient_id") @db.VarChar(100)
+  createdBy         String          @map("created_by") @db.Uuid
+  status            WorkflowStatus  @default(pending)
+  qualityScore      Float?          @map("quality_score")
+  payerType         String?         @map("payer_type") @db.VarChar(100)
+  resultData        Json?           @map("result_data")
+  langgraphThreadId String?         @map("langgraph_thread_id") @db.VarChar(255)
+  celeryTaskId      String?         @map("celery_task_id") @db.VarChar(255)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  clinicalRecords   ClinicalRecord[]
+
+  @@map("workflows")
+}
+
+model ClinicalRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  workflowId      String   @map("workflow_id") @db.Uuid
+  patientId       String   @map("patient_id") @db.VarChar(100)
+  icd10Codes      Json?    @map("icd10_codes")
+  summary         String?  @db.Text
+  confidenceScore Float?   @map("confidence_score")
+  rawTextHash     String?  @map("raw_text_hash") @db.VarChar(64)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workflow        Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@map("clinical_records")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  action       String   @db.VarChar(100)
+  patientId    String?  @map("patient_id") @db.VarChar(100)
+  workflowId   String?  @map("workflow_id") @db.Uuid
+  resourceType String?  @map("resource_type") @db.VarChar(100)
+  resourceId   String?  @map("resource_id") @db.VarChar(255)
+  metadata     Json?
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  userAgent    String?  @map("user_agent") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("audit_logs")
+}
+
+model PATemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  fields      Json
+  fileContent String?  @map("file_content") @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("pa_templates")
+}

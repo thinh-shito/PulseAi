@@ -78,14 +78,23 @@ export default function DashboardPage() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${API_URL}/api/v1/workflow/`, {
+      const res = await fetch(`${API_URL}/api/v1/workflow`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.status === 401) { localStorage.clear(); router.push("/login"); return; }
       if (!res.ok) throw new Error("Failed to load workflows");
 
-      setWorkflows(await res.json());
+      const data = await res.json();
+      const mapped = data.map((w: any) => ({
+        ...w,
+        patient_id: w.patientId || w.patient_id,
+        created_by: w.createdBy || w.created_by,
+        quality_score: w.qualityScore !== undefined ? w.qualityScore : w.quality_score,
+        payer_type: w.payerType || w.payer_type,
+        created_at: w.createdAt || w.created_at,
+      }));
+      setWorkflows(mapped);
     } catch (err: any) {
       setError(err.message || "Failed to load workflows");
     } finally {
@@ -100,7 +109,7 @@ export default function DashboardPage() {
   }, []);
 
   const filtered = workflows.filter((w) =>
-    w.patient_id.toLowerCase().includes(search.toLowerCase())
+    (w.patient_id || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const stats = {
@@ -295,7 +304,7 @@ export default function DashboardPage() {
                             letterSpacing: "0.02em",
                           }}
                         >
-                          {w.patient_id.slice(0, 8)}…
+                          {(w.patient_id || "").slice(0, 8)}…
                         </span>
                       </td>
                       <td>

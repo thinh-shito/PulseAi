@@ -1,12 +1,33 @@
 version: "3.9"
 
 services:
-  backend:
+  # ─── Python gRPC AI Service (LangGraph + PHI anonymization) ─────────────────
+  ai-service:
     build:
       context: ./src-backend
       dockerfile: Dockerfile
+    container_name: pulseai-ai-service
+    env_file: .env
+    environment:
+      - GRPC_PORT=50051
+    # gRPC port is internal-only — NestJS is the only consumer
+    networks:
+      - pulseai-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m app.grpc_server
+    restart: unless-stopped
+
+  # ─── NestJS API Gateway (REST/SSE + JWT auth + Prisma ORM + gRPC client) ────
+  backend:
+    build:
+      context: ./src-backend-nestjs
+      dockerfile: Dockerfile
     container_name: pulseai-backend
     env_file: .env
+    environment:
+      - AI_SERVICE_URL=ai-service:50051
     ports:
       - "8000:8000"
     depends_on:
@@ -14,14 +35,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./src-backend:/app
+      ai-service:
+        condition: service_started
     networks:
       - pulseai-internal
       - pulseai-external
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
 
-
+  # ─── PostgreSQL (internal only) ──────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: pulseai-postgres
@@ -39,7 +60,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
+  # ─── Redis (session / rate-limit / internal only) ───────────────────────────
   redis:
     image: redis:7-alpine
     container_name: pulseai-redis
@@ -52,7 +75,9 @@ services:
       timeout: 5s
       retries: 5
     command: redis-server --appendonly yes
+    restart: unless-stopped
 
+  # ─── Next.js Frontend ────────────────────────────────────────────────────────
   frontend:
     build:
       context: ./src-frontend
@@ -65,13 +90,14 @@ services:
       - backend
     networks:
       - pulseai-external
+    restart: unless-stopped
 
 networks:
   pulseai-internal:
     driver: bridge
-    internal: true   # No outbound internet from DB/Redis containers
+    internal: true   # DB/Redis/AI-service: no outbound internet access
   pulseai-external:
-    driver: bridge   # Backend + Frontend can reach whitelisted endpoints
+    driver: bridge   # NestJS backend + Frontend: controlled outbound access
 
 volumes:
   postgres_data:
