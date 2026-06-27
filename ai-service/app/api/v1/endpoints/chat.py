@@ -1,22 +1,20 @@
 """
-Chat endpoint stub — placeholder for future streaming LLM chat.
-Currently returns a not-implemented response.
+Chat endpoint calling the chat handler.
 """
 from fastapi import APIRouter
-from pydantic import BaseModel
+from app.handlers.chat_handler import handle_chat
+from app.models.chat_models import ChatRequest
 
 router = APIRouter()
 
 
-class ChatRequest(BaseModel):
-    message: str
-    workflow_id: str | None = None
-
-
 @router.post("/chat")
 async def chat(request: ChatRequest):
-    # TODO: implement streaming LLM chat using LangChain
+    """
+    Send message to the chat handler.
+    """
+    res = handle_chat(request.message)
     return {
-        "reply": "Chat endpoint not yet implemented in ai-service.",
+        "reply": res["reply"],
         "workflow_id": request.workflow_id,
     }

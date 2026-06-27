@@ -7,6 +7,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # App
@@ -32,6 +33,12 @@ class Settings(BaseSettings):
 
     # Backend callback URL for workflow progress updates
     backend_callback_url: str = "http://backend:4000"
+
+    # Database connection URL
+    database_url: str = "postgresql://pulseai:pulseai_secret@postgres:5432/pulseai_db"
+
+    # Redis connection URL — optional; app runs without LLM cache when unset
+    redis_url: Optional[str] = None
 
     # CORS — which origins can call ai-service directly (dev only)
     allowed_origins: str = "http://localhost:4000,http://backend:4000"
