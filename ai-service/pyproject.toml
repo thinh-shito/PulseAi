@@ -16,6 +16,7 @@ dependencies = [
     "langgraph>=0.1.0",
     "langsmith>=0.1.0",
     "openai>=1.35.0",
+    "db-query-agent>=0.1.0",
     "docx2txt>=0.8",
     "pypdf>=4.0.0",
     "psycopg2-binary>=2.9.0",

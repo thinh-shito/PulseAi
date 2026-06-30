@@ -13,13 +13,7 @@ class Settings(BaseSettings):
     # App
     environment: str = "development"
 
-    # Azure OpenAI (primary)
-    azure_openai_endpoint: Optional[str] = None
-    azure_openai_api_key: Optional[str] = None
-    azure_openai_api_version: str = "2024-02-01"
-    azure_openai_deployment: str = "gpt-4o"
-
-    # Fallback LLMs (dev only)
+    # LLM API Keys
     openai_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
 
@@ -36,6 +30,11 @@ class Settings(BaseSettings):
 
     # Database connection URL
     database_url: str = "postgresql://pulseai:pulseai_secret@postgres:5432/pulseai_db"
+
+    # External HIS database connection URL used by /chat medical document search.
+    # This database is separate from PulseAI's application database.
+    his_database_url: Optional[str] = None
+    his_db_query_fast_model: str = "gpt-4o-mini"
 
     # Redis connection URL — optional; app runs without LLM cache when unset
     redis_url: Optional[str] = None
